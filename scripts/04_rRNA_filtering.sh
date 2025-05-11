@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#activate conda environment
+# activate conda environment
 module load conda
 conda activate /usr/local/usrapps/maize/hdpil/hdpil
 

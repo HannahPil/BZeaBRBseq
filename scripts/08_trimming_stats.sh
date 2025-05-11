@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Directories
-raw_dir="/workdir/joo29/raw_reads"
-trimmed_dir="/workdir/joo29/03_trimmed"
-output_file="/workdir/joo29/trimmed_read_statistics.txt"
+raw_dir="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/raw_reads"
+trimmed_dir="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/03_trimmed"
+output_file="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/trimmed_read_statistics.txt"
 
 # Initialize the output file
 echo -e "SampleID\tRawReads\tTrimmedReads\tTrimmedPercentage" > "$output_file"

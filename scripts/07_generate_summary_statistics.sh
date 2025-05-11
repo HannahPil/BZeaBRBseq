@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# activate conda environment
+module load conda
+conda activate /usr/local/usrapps/maize/hdpil/hdpil
+
 # Check if a species name is provided
 if [ -z "$1" ]; then
     echo "Usage: $0 <Species Name>"
@@ -9,11 +13,11 @@ fi
 species=$1
 
 # Define paths based on species
-rawDataDIR="/workdir/joo29/raw_reads/"
-inDIR="/workdir/joo29/clean_reads/"
-outDIR="/workdir/joo29/${species}/alignments/"
-metadata="/workdir/joo29/metadata.txt"
-summary_file="/workdir/joo29/${species}/summary_statistics_${species}.txt"
+rawDataDIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/raw_reads/"
+inDIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/clean_reads/"
+outDIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/${species}/alignments/"
+metadata="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/metadata.txt"
+summary_file="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/${species}/summary_statistics_${species}.txt"
 
 # Create the summary file if it doesn't exist
 if [ ! -f "$summary_file" ]; then
