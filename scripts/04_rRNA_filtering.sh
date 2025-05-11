@@ -1,11 +1,15 @@
 #!/bin/bash
 
+#activate conda environment
+module load conda
+conda activate /usr/local/usrapps/maize/hdpil/hdpil
+
 # Set paths
-MINIMAP2_PATH="/programs/minimap2-2.27/minimap2"
-REFERENCE_PATH="/workdir/joo29/Arabidopsis_Zea_rRNA.fasta"
-TRIMMED_DIR="/workdir/joo29/03_trimmed"
-OUTPUT_DIR="/workdir/joo29/clean_reads"
-LOG_FILE="/workdir/joo29/rRNA_survival_statistics.log"
+#MINIMAP2_PATH="/programs/minimap2-2.27/minimap2"
+REFERENCE_PATH="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/Arabidopsis_Zea_rRNA.fasta"
+TRIMMED_DIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/03_trimmed"
+OUTPUT_DIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/clean_reads"
+LOG_FILE="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/rRNA_survival_statistics.log"
 
 # Create output and log directories if they don't exist
 mkdir -p "$OUTPUT_DIR"

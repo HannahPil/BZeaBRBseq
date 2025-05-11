@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Set directories - modify paths to match your current structure
-outDIR="/workdir/joo29/03_trimmed/"
-readsDIR="/workdir/joo29/raw_reads/"
+outDIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/03_trimmed/"
+readsDIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/raw_reads/"
 
 # Create output directory if it doesn't exist
 if [ ! -d "$outDIR" ]; then

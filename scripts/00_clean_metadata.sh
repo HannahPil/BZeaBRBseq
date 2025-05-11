@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Original metadata file
-original_metadata="/workdir/joo29/metadata_cpp.txt"
+original_metadata="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/metadata_cpp.txt"
 # New file to be created, without carriage return characters
-cleaned_metadata="/workdir/joo29/metadata.txt"
+cleaned_metadata="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/metadata.txt"
 
 # Remove carriage return characters (\r) and write to new file
 tr -d '\r' < "$original_metadata" > "$cleaned_metadata"

@@ -1,5 +1,9 @@
 #!/bin/bash
 
+#activate conda environment
+module load conda
+conda activate /usr/local/usrapps/maize/hdpil/hdpil
+
 # Check if a species name is provided
 if [ -z "$1" ]; then
     echo "Usage: $0 <Species Name>"
@@ -9,7 +13,7 @@ fi
 species=$1
 
 # Set directories based on the species name
-baseDir="/workdir/joo29"
+baseDir="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah"
 metadata="${baseDir}/metadata.txt"
 inDIR="${baseDir}/clean_reads/"
 outDIR="${baseDir}/${species}/alignments/"
@@ -72,10 +76,10 @@ echo "All alignments for $species completed."
 
 # Call the appropriate R script for counting reads based on species
 if [ "$species" = "Zea_mays" ]; then
-    Rscript /workdir/joo29/06_featureCounts_Zm.R "$species"
+    Rscript /rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/06_featureCounts_Zm.R "$species"
 else
-    Rscript /workdir/joo29/06_featureCounts.R "$species"
+    Rscript /rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/06_featureCounts.R "$species"
 fi
 
 # After counting, run the summary statistics script
-bash /workdir/joo29/07_generate_summary_statistics.sh "$species"
+bash /rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/07_generate_summary_statistics.sh "$species"
