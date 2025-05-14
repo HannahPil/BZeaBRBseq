@@ -7,4 +7,4 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -W 12:00
 
-../scripts/04_rRNA_filtering.sh
+../scripts/04_rRNA_filtering.sh maize
