@@ -29,7 +29,7 @@ do
     fi
 
     # Process the file with Trimmomatic
-    java -jar /programs/trimmomatic/trimmomatic-0.36.jar SE -threads 60 -phred33 \
+    trimmomatic SE -threads 60 -phred33 \
         "$file" "${outDIR}${baseName}_trimmed.fq" ILLUMINACLIP:TruSeq3-SE.fa:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
 
     # Compress the output file
