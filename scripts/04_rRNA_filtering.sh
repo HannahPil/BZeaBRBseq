@@ -37,7 +37,7 @@ for fq_file in "$TRIMMED_DIR"/*.fq.gz; do
 
     # Align reads with minimap2 and convert SAM to BAM
     echo "Aligning reads for ${sample_id}..."
-    $MINIMAP2_PATH -ax sr -t 60 "$REFERENCE_PATH" "$fq_file" > "$sam_file"
+    minimap2 -ax sr -t 60 "$REFERENCE_PATH" "$fq_file" > "$sam_file"
     samtools view -bS "$sam_file" > "$bam_file"
 
     # Count total, aligned, and unaligned reads
