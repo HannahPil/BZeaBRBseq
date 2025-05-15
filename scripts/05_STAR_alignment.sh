@@ -35,7 +35,7 @@ fi
 if [ ! -d "${genomeDir}" ]; then
     mkdir -p "$genomeDir"
     echo "Generating genome index for $species..."
-    /programs/STAR-2.7.10b/STAR \
+    STAR \
          --runThreadN 32 \
          --runMode genomeGenerate \
          --genomeDir "${genomeDir}" \
@@ -55,7 +55,7 @@ while read sample_id; do
     if [ -f "$fastqFile" ]; then
         if [ ! -f "${outDIR}${sample_id}_Aligned.sortedByCoord.out.bam" ]; then
             echo "Running alignment for $sample_id..."
-            /programs/STAR-2.7.10b/STAR \
+            STAR \
                  --outFileNamePrefix "${outDIR}${sample_id}_" \
                  --outSAMtype BAM SortedByCoordinate \
                  --outSAMstrandField intronMotif \
