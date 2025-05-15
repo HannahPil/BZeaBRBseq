@@ -41,7 +41,7 @@ while read sample_id; do
                 --outSAMtype BAM SortedByCoordinate \
                 --outSAMstrandField intronMotif \
                 --genomeDir "${genomeDir}" \
-                --runThreadN 1 \
+                --runThreadN 12 \
                 --readFilesCommand zcat \
                 --readFilesIn "$fastqFile" \
                 --twopassMode Basic
