@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # Set the R library path
 
-.libPaths("/home/joo29/R/x86_64-pc-linux-gnu-library/4.2")
+#.libPaths("/home/joo29/R/x86_64-pc-linux-gnu-library/4.2")
 
 # Load required package
 library(Rsubread)
