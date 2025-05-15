@@ -18,7 +18,7 @@ metadata="${baseDir}/metadata.txt"
 inDIR="${baseDir}/clean_reads/"
 outDIR="${baseDir}/${species}/alignments/"
 genomeFA="${baseDir}/${species}/${species}.fasta"
-annotation="${baseDir}/${species}/${species}.gff"
+annotation="${baseDir}/${species}/${species}.gtf"
 genomeDir="${baseDir}/${species}/genomeIndex/${species}/"
 sampleIDs="${baseDir}/${species}_sample_ids.txt"
 
