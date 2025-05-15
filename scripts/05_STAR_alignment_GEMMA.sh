@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # activate conda environment
-module load conda
-conda activate /usr/local/usrapps/maize/hdpil/hdpil
+#module load conda
+#conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
 # Check if a species name is provided
 
