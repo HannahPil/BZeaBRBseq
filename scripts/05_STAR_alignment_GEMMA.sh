@@ -15,7 +15,7 @@ species=$1
 
 # Set directories based on the species name
 baseDir="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah"
-metadata="${baseDir}/metadata.txt"   ###### We dont have this
+metadata="${baseDir}/metadata.txt"
 inDIR="${baseDir}/clean_reads/"
 outDIR="${baseDir}/alignments/"
 genomeDir="/rsstu/users/r/rrellan/sara/ref/STAR_index/"
