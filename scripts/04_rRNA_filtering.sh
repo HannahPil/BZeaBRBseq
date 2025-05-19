@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# activate conda environment
-module load conda
-conda activate /usr/local/usrapps/maize/hdpil/hdpil
-
 # Set paths
 #MINIMAP2_PATH="/programs/minimap2-2.27/minimap2"
 REFERENCE_PATH="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/Arabidopsis_Zea_rRNA.fasta"
