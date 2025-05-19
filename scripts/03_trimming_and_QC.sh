@@ -30,7 +30,7 @@ do
 
     # Process the file with Trimmomatic
     trimmomatic SE -threads 60 -phred33 \
-        "$file" "${outDIR}${baseName}_trimmed.fq" ILLUMINACLIP:TruSeq3-SE.fa:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
+        "$file" "${outDIR}${baseName}_trimmed.fq" ILLUMINACLIP:/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/TruSeq3-SE.fa:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
 
     # Compress the output file
     pigz "${outDIR}${baseName}_trimmed.fq"
