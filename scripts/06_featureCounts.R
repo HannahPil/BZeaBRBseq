@@ -14,7 +14,7 @@ species <- args[1]
 base_path <- "/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah"
 
 bam_directory <- file.path(base_path, species, "alignments")
-annotation_file <- file.path(base_path, species, paste0(species, ".gff")) 
+annotation_file <- file.path(base_path, species, paste0(species, ".gtf")) 
 
 # List all BAM files
 bam_files <- list.files(path = bam_directory, pattern = "\\.bam$", full.names = TRUE)
