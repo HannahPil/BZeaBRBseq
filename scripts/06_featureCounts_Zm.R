@@ -11,8 +11,8 @@ args <- commandArgs(trailingOnly = TRUE)
 species <- args[1]
 
 # Set paths based on the species
-bam_directory <- paste0("/workdir/joo29/", species, "/alignments/")
-annotation_file <- paste0("/workdir/joo29/", species, "/", species, "_hxr.gff")
+bam_directory <- paste0("/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/", species, "/alignments/")
+annotation_file <- paste0("/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/", species, "/", species, "_hxr.gff")
 
 # List all BAM files
 bam_files <- list.files(path = bam_directory, pattern = "\\.bam$", full.names = TRUE)
@@ -48,7 +48,7 @@ for (bam_file in bam_files) {
 row.names(count_data) <- counts$annotation$GeneID
 
 # Output path for the count data
-output_file <- paste0("/workdir/joo29/", species, "/", species, "_counts.txt")
+output_file <- paste0("/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/", species, "/", species, "_counts.txt")
 
 # Export the count data to a .txt file
 write.table(count_data, file = output_file, row.names = TRUE, sep = "\t", quote = FALSE)
