@@ -14,7 +14,7 @@ counts <- featureCounts(
   annot.ext = annotation_file,
   isGTFAnnotationFile = TRUE,
   GTF.featureType = "exon",
-  GTF.attrType = "ID",
+  GTF.attrType = "gene_id",
   isPairedEnd = FALSE,
   primaryOnly = TRUE,
   strandSpecific = 1,
