@@ -13,7 +13,7 @@ counts <- featureCounts(
   files = bam_file,
   annot.ext = annotation_file,
   isGTFAnnotationFile = TRUE,
-  GTF.featureType = "gene",
+  GTF.featureType = "exon",
   GTF.attrType = "ID",
   isPairedEnd = FALSE,
   primaryOnly = TRUE,
