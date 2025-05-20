@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # activate conda environment
-module load conda
-conda activate /usr/local/usrapps/maize/hdpil/hdpil
+#module load conda
+#conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
 # Check if a species name is provided
 if [ -z "$1" ]; then
@@ -15,7 +15,7 @@ species=$1
 # Define paths based on species
 rawDataDIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/raw_reads/"
 inDIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/clean_reads/"
-outDIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/${species}/alignments/"
+outDIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/alignments/"
 metadata="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/metadata.txt"
 summary_file="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/${species}/summary_statistics_${species}.txt"
 
