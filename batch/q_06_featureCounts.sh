@@ -7,4 +7,4 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -W 12:00
 
-Rscript ./06_featureCounts_Zm.R
+Rscript ../scripts/06_featureCounts_Zm.R
