@@ -7,4 +7,4 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -W 12:00
 
-../scripts/07_generate_summary_statistics.sh
+../scripts/07_generate_summary_statistics.sh Zea_mays
