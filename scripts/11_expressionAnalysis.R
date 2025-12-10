@@ -3,6 +3,7 @@ library(ggplot2)
 library(ggrepel)
 library(dplyr)
 library(tidyr)
+library(grid)  # for unit()
 
 setwd("C:/Users/Hannah Pil/Documents/gemmalab/BZea/BZea RNA-seq/BZeaBRBseq")
 
@@ -26,7 +27,8 @@ meta <- meta[meta$sample_id %in% colnames(counts), ]
 counts <- counts[, meta$sample_id]
 
 # ============================
-# filter + normalize
+# filter + normalize (original keep rule)
+# keep genes with >=10 counts in >=2 samples
 # ============================
 keep <- rowSums(counts >= 10) >= 2
 counts_filt <- counts[keep, ]
@@ -45,7 +47,7 @@ allelic <- read.csv("Allelic_series_for_expression.csv",
 
 genes_from_allelic <- colnames(allelic)
 
-# turn wide → long for teosinte carriers
+# wide -> long: gene_id x genotype that carries teosinte
 carriers <- allelic %>%
   pivot_longer(
     cols = everything(),
@@ -55,7 +57,7 @@ carriers <- allelic %>%
   filter(!is.na(genotype), genotype != "")
 
 # ============================
-# candidate genes + categories
+# candidate genes + categories (annotation with clear priority)
 # ============================
 cand <- read.csv("candidate_genes.csv")
 
@@ -63,23 +65,40 @@ keep_cats <- c("FT", "targ", "GWAS_GBS_landraces_N", "Fst_landraces_N")
 
 cand_sub_raw <- cand %>%
   filter(
-    gene_id %in% genes_from_allelic,   # only analyze genes in allelic-series CSV
-    category %in% keep_cats,
+    gene_id %in% genes_from_allelic,
     gene_id %in% rownames(mat)
   )
 
-# collapse multiple categories per gene (rare)
 cand_sub <- cand_sub_raw %>%
   group_by(gene_id) %>%
   summarise(
-    category = paste(unique(category), collapse = ";"),
+    category = {
+      cats <- unique(category)
+      # keep only categories in your main nitrogen-related set
+      cats_keep <- keep_cats[keep_cats %in% cats]
+      
+      if (length(cats_keep) == 0) {
+        NA_character_
+      } else {
+        # choose the first match based on the order in keep_cats
+        cats_keep[1]
+      }
+    },
     .groups = "drop"
   )
 
 # ============================
-# subset normalized matrix to selected genes
+# load gene names (for aesthetics)
+# expects columns: v5_gene_id, gene_name
 # ============================
-mat_sub <- mat[rownames(mat) %in% cand_sub$gene_id, ]
+gene_names <- read.csv("gene_names.csv") %>%
+  rename(gene_id = v5_gene_id)
+
+# ============================
+# subset normalized matrix to allelic genes that passed filter
+# ============================
+genes_to_use <- intersect(genes_from_allelic, rownames(mat))
+mat_sub <- mat[rownames(mat) %in% genes_to_use, ]
 
 # ============================
 # long format expression table
@@ -108,6 +127,29 @@ df_gene_taxa <- df_long %>%
   ungroup()
 
 # ============================
+# category factor for plotting
+# ============================
+df_gene_taxa <- df_gene_taxa %>%
+  mutate(
+    category_plot = ifelse(!is.na(category) & category %in% keep_cats,
+                           category,
+                           "other/NA"),
+    category_plot = factor(category_plot, levels = c(keep_cats, "other/NA"))
+  )
+
+# ============================
+# add gene names (aesthetic only)
+# if no gene_name, fall back to gene_id
+# ============================
+df_gene_taxa <- df_gene_taxa %>%
+  left_join(gene_names, by = "gene_id") %>%
+  mutate(
+    gene_label = ifelse(!is.na(gene_name) & gene_name != "",
+                        gene_name,
+                        gene_id)
+  )
+
+# ============================
 # add teosinte-carrier info
 # + force B73 and Purple Check to always show expression
 # ============================
@@ -126,11 +168,21 @@ df_gene_taxa <- df_gene_taxa %>%
   )
 
 # ============================
+# NEW: drop BZea lines that never carry teosinte for any gene
+# (but always keep B73 and Purple Check)
+# ============================
+genos_with_teo <- unique(carriers$genotype)
+
+df_gene_taxa <- df_gene_taxa %>%
+  filter(genotype %in% c(genos_with_teo, "B73", "Purple Check"))
+
+# ============================
 # ordering for axes
 # ============================
+# order genes within category by gene_id, but display gene_label
 gene_order <- df_gene_taxa %>%
-  arrange(factor(category, levels = keep_cats), gene_id) %>%
-  pull(gene_id) %>%
+  arrange(category_plot, gene_id) %>%
+  pull(gene_label) %>%
   unique()
 
 geno_order <- df_gene_taxa %>%
@@ -140,10 +192,9 @@ geno_order <- df_gene_taxa %>%
 
 df_gene_taxa <- df_gene_taxa %>%
   mutate(
-    gene_id  = factor(gene_id, levels = rev(gene_order)),
-    genotype = factor(genotype, levels = geno_order),
-    category = factor(category, levels = keep_cats),
-    Taxa     = factor(Taxa)
+    gene_label = factor(gene_label, levels = rev(gene_order)),
+    genotype   = factor(genotype, levels = geno_order),
+    Taxa       = factor(Taxa)
   )
 
 # ============================
@@ -151,31 +202,37 @@ df_gene_taxa <- df_gene_taxa %>%
 # – colored only where teosinte exists
 # – gray where maize-only
 # – B73 + Purple Check always shown
+# – only genotypes that have teosinte for at least one gene (plus checks)
+# – rows faceted by category_plot
+# – y-axis shows gene names where available
 # ============================
-ggplot(df_gene_taxa, aes(x = genotype, y = gene_id, fill = centered_logCPM_masked)) +
+ggplot(df_gene_taxa, aes(x = genotype, y = gene_label, fill = centered_logCPM_masked)) +
   geom_tile() +
-  # Use both scales and space set to "free_x" to vary panel widths
-  facet_grid(~ Taxa, scales = "free_x", space = "free_x") +
+  facet_grid(
+    category_plot ~ Taxa,
+    scales = "free",
+    space  = "free"
+  ) +
   scale_fill_gradient2(
-    low     = "blue",
-    mid     = "white",
-    high    = "red",
+    low      = "blue",
+    mid      = "white",
+    high     = "red",
     midpoint = 0,
     na.value = "grey80"
   ) +
   labs(
-    x = "bzea line (genotype)",
-    y = "gene (grouped by category)",
+    x = "BZea genotype",
+    y = "gene",
     fill = "centered logCPM",
-    title = "expression of candidate genes across bzea lines and taxa\n(red/blue only where teosinte introgression is present;\nB73 & Purple Check always shown)"
+    title = "expression of candidate genes across bzea lines"
   ) +
   theme_bw() +
   theme(
-    # This removes the white spacing (gutters) between the facets
-    panel.spacing = unit(0, "pt"),
-    axis.text.x = element_text(angle = 90,
-                               vjust = 0.5,
-                               hjust = 1,
-                               size = 6),
-    axis.text.y = element_text(size = 6)
+    panel.spacing    = unit(0, "pt"),
+    strip.background = element_rect(fill = "grey90"),
+    axis.text.x      = element_text(angle = 90,
+                                    vjust = 0.5,
+                                    hjust = 1,
+                                    size  = 6),
+    axis.text.y      = element_text(size = 6)
   )
