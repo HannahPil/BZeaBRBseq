@@ -130,3 +130,65 @@ ggsave("output/PCA_taxa.png", p1, width = 7, height = 7, dpi = 300)
 ggsave("output/PCA_plate.png", p2, width = 7, height = 7, dpi = 300)
 ggsave("output/PCA_corr_taxa.png", p1_corr, width = 7, height = 7, dpi = 300)
 ggsave("output/PCA_corr_plate.png", p2_corr, width = 7, height = 7, dpi = 300)
+
+# ========================================================================================
+# subset to FT_genes
+# ========================================================================================
+FT_genes <- c("Zm00001eb391060", "Zm00001eb353250")
+
+counts <- counts[rownames(counts) %in% FT_genes, ]
+
+# ============================
+# normalize
+# ============================
+dge <- DGEList(counts = counts)
+dge <- calcNormFactors(dge)
+mat <- cpm(dge, log = TRUE, prior.count = 1)
+
+# ============================
+# PCA
+# ============================
+pca <- prcomp(t(mat))
+scores <- as.data.frame(pca$x)
+scores$sample_id <- rownames(scores)
+
+# merge metadata
+scores <- merge(scores, meta, by = "sample_id")
+
+# variance explained
+pct <- round(100 * pca$sdev^2 / sum(pca$sdev^2), 1)
+
+# ============================
+# PCA plot (FT_genes only)
+# ============================
+p_FT <- ggplot(scores, aes(x = PC1, y = PC2)) +
+  geom_point(aes(color = ifelse(check == "yes", "check", taxa)), size = 3) +
+  xlab(paste0("PC1 (", pct[1], "%)")) +
+  ylab(paste0("PC2 (", pct[2], "%)")) +
+  theme_bw() +
+  scale_color_manual(
+    values = c(
+      "check" = "black",
+      "Dura"  = "#1f77b4",
+      "Nobo"  = "#ff7f0e",
+      "Mesa"  = "#2ca02c",
+      "Chal"  = "#d62728",
+      "Bals"  = "#9467bd",
+      "Zdip"  = "brown4",
+      "Hueh"  = "yellow3",
+      "Zlux"  = "#17becf"
+    ),
+    breaks = c("check", "Dura", "Nobo", "Mesa", "Chal", "Bals", "Zdip", "Hueh", "Zlux")
+  ) +
+  labs(color = "Taxa",
+       title = "PCA using FT_genes only")
+p_FT
+
+
+# ============================
+# export
+# ============================
+ggsave("output/PCA_FT_genes.png", p_FT, width = 7, height = 7, dpi = 300)
+
+apply(mat, 1, var)
+
