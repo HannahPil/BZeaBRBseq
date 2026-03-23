@@ -1,6 +1,7 @@
 
 
 library(edgeR)
+library(limma)
 library(ggplot2)
 library(ggrepel)
 
@@ -9,8 +10,8 @@ setwd("C:/Users/Hannah Pil/Documents/gemmalab/BZea/BZea RNA-seq/BZeaBRBseq")
 # ============================
 # load data
 # ============================
-counts <- read.table("Zea_mays_counts.txt", header = TRUE, row.names = 1, sep = "\t")
-meta_all <- read.csv("metadata.csv")
+counts <- read.table("Zea_mays_counts.txt", header = TRUE, row.names = 1, sep = "\t", check.names = FALSE)
+meta_all <- read.csv("metadata.csv", stringsAsFactors = FALSE)
 
 # keep only complete rows (plate 1–4)
 meta <- subset(meta_all, plate %in% c(1, 2, 3, 4))
@@ -88,6 +89,18 @@ p2
 
 
 # ============================
+# batch correction (remove plate effect with limma)
+# ============================
+mat_corr <- removeBatchEffect(mat, batch = factor(meta$plate))
+
+pca_corr <- prcomp(t(mat_corr))
+scores_corr <- as.data.frame(pca_corr$x)
+scores_corr$sample_id <- rownames(scores_corr)
+scores_corr <- scores_corr[, !duplicated(names(scores_corr))]
+scores_corr <- merge(scores_corr, meta, by = "sample_id")
+pct_corr <- round(100 * pca_corr$sdev^2 / sum(pca_corr$sdev^2), 1)
+
+# ============================
 # plotting (after correction)
 # ============================
 
@@ -125,11 +138,13 @@ p2_corr <- ggplot(scores_corr, aes(x = PC1, y = PC2, color = as.factor(plate))) 
        title = "PCA after batch correction (by plate)")
 p2_corr
 
-#export
-ggsave("output/PCA_taxa.png", p1, width = 7, height = 7, dpi = 300)
-ggsave("output/PCA_plate.png", p2, width = 7, height = 7, dpi = 300)
-ggsave("output/PCA_corr_taxa.png", p1_corr, width = 7, height = 7, dpi = 300)
-ggsave("output/PCA_corr_plate.png", p2_corr, width = 7, height = 7, dpi = 300)
+out_dir <- file.path("output", "PCA")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+ggsave(file.path(out_dir, "PCA_taxa.png"), p1, width = 7, height = 7, dpi = 300)
+ggsave(file.path(out_dir, "PCA_plate.png"), p2, width = 7, height = 7, dpi = 300)
+ggsave(file.path(out_dir, "PCA_corr_taxa.png"), p1_corr, width = 7, height = 7, dpi = 300)
+ggsave(file.path(out_dir, "PCA_corr_plate.png"), p2_corr, width = 7, height = 7, dpi = 300)
 
 # ========================================================================================
 # subset to FT_genes
@@ -188,7 +203,7 @@ p_FT
 # ============================
 # export
 # ============================
-ggsave("output/PCA_FT_genes.png", p_FT, width = 7, height = 7, dpi = 300)
+ggsave(file.path(out_dir, "PCA_FT_genes.png"), p_FT, width = 7, height = 7, dpi = 300)
 
 apply(mat, 1, var)
 

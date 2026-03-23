@@ -13,9 +13,10 @@ setwd("C:/Users/Hannah Pil/Documents/gemmalab/BZea/BZea RNA-seq/BZeaBRBseq")
 counts <- read.table("Zea_mays_counts.txt",
                      header = TRUE,
                      row.names = 1,
-                     sep = "\t")
+                     sep = "\t",
+                     check.names = FALSE)
 
-meta_all <- read.csv("metadata.csv")
+meta_all <- read.csv("metadata.csv", stringsAsFactors = FALSE)
 
 # keep only complete rows (plate 1–4)
 meta <- subset(meta_all, plate %in% c(1, 2, 3, 4))

@@ -62,9 +62,13 @@ teogeno <- teogeno[!duplicated(names(teogeno))]
 cat("\n2. Aligning samples...\n")
 
 sample_df <- metadata |>
-  filter(sample_id %in% colnames(counts)) |>
+  filter(
+    sample_id %in% colnames(counts),
+    plate %in% c(1, 2, 3, 4)                # keep only sequenced plates
+  ) |>
   transmute(
     sample_id,
+    taxa  = factor(taxa),
     plate = factor(plate),
     genotype_teogeno_key = if_else(genotype == "B73", "B73.B", paste0(genotype, ".B"))
   ) |>
@@ -154,6 +158,9 @@ cat("  introgressed gene markers (any 1s): ", sum(rowSums(geneGT) > 0), "\n", se
 # ==============================================================================
 cat("\n5. Normalizing expression (log2 CPM)...\n")
 
+# NOTE: using raw library-size CPM (not TMM-normalized) here intentionally.
+# MatrixEQTL's linear model with plate covariates handles composition differences.
+# The PCA/DE scripts (10, 11, 12) use edgeR TMM CPM instead.
 lib_size <- colSums(counts)
 expr_mat <- log2(t(t(as.matrix(counts)) / lib_size * 1e6) + 1)
 
@@ -471,10 +478,7 @@ cat("DONE. plots saved in: ", plot_dir, "\n", sep = "")
 # ==============================================================================
 cat("10. Combining trans results + plotting combined Manhattan...\n")
 
-suppressPackageStartupMessages({
-  library(tidyverse)
-  library(scales)
-})
+# (tidyverse + scales already loaded above)
 
 plot_dir <- file.path("output", "trans_by_source_chr")
 
@@ -595,4 +599,581 @@ ggsave(out_png, p_trans_all, width = 10, height = 5)
 
 cat("  saved plot:\n")
 cat("   - ", out_png, "\n", sep = "")
+
+# ==============================================================================
+# INVERSE TRANS MANHATTAN (FULL PLOT REWRITE)
+# fixed source (SNP) = source_snp
+# x-axis = TARGET gene genomic position (gene)
+# y-axis = -log10(p.value)
+# adds vertical dotted line at SOURCE gene position
+# reads from combined trans table in output/trans_by_source_chr/
+# standalone: rebuilds gene coords from Zea_mays.gtf
+# ==============================================================================
+
+# (tidyverse, rtracklayer, scales already loaded above)
+
+plot_dir   <- file.path("output", "trans_by_source_chr")
+source_snp <- "Zm00001eb012470"
+
+# ----------------------------- load results -----------------------------------
+trans_all <- read.delim(
+  file.path(plot_dir, "BZea_trans_ALL_sources_combined.tsv"),
+  sep = "\t",
+  stringsAsFactors = FALSE
+)
+
+inv_df <- trans_all |> filter(SNP == source_snp)
+
+cat("rows for source SNP: ", nrow(inv_df), "\n", sep = "")
+stopifnot(nrow(inv_df) > 0)
+
+# ----------------------------- gene coordinates -------------------------------
+# reuse gene_coords from section 3 (already has all genes with coords + counts)
+gene_coords_full <- gene_coords
+
+# ----------------------------- build plot df ----------------------------------
+plot_data <- inv_df |>
+  left_join(
+    gene_coords_full |> select(gene_id, chr, start),
+    by = c("gene" = "gene_id")
+  ) |>
+  mutate(
+    chr_clean = gsub("chr", "", chr, ignore.case = TRUE),
+    chr_num   = suppressWarnings(as.numeric(chr_clean)),
+    pos       = as.numeric(start),
+    log_p     = -log10(as.numeric(p.value))
+  ) |>
+  filter(!is.na(chr_num), !is.na(pos), !is.na(log_p))
+
+stopifnot(nrow(plot_data) > 0)
+
+# cumulative positions across TARGET genome
+data_cum <- plot_data |>
+  group_by(chr_num) |>
+  summarise(max_bp = max(pos), .groups = "drop") |>
+  arrange(chr_num) |>
+  mutate(bp_add = lag(cumsum(max_bp), default = 0)) |>
+  select(chr_num, bp_add)
+
+plot_data <- plot_data |>
+  inner_join(data_cum, by = "chr_num") |>
+  mutate(
+    bp_cum = pos + bp_add,
+    color_group = case_when(
+      FDR < 0.05 & (chr_num %% 2 == 1) ~ "Sig_Odd",
+      FDR < 0.05 & (chr_num %% 2 == 0) ~ "Sig_Even",
+      (chr_num %% 2 == 1) ~ "Base_Odd",
+      TRUE ~ "Base_Even"
+    )
+  )
+
+axis_set <- plot_data |>
+  group_by(chr_num) |>
+  summarise(center = (max(bp_cum) + min(bp_cum)) / 2, .groups = "drop") |>
+  arrange(chr_num)
+
+max_y <- max(plot_data$log_p, na.rm = TRUE)
+
+sig_cutoff <- if (any(plot_data$FDR < 0.05, na.rm = TRUE)) {
+  -log10(max(plot_data$p.value[plot_data$FDR < 0.05], na.rm = TRUE))
+} else {
+  NA_real_
+}
+
+# ----------------------------- source vline ----------------------------------
+source_pos <- gene_coords_full |>
+  filter(gene_id == source_snp) |>
+  mutate(
+    chr_clean = gsub("chr", "", chr, ignore.case = TRUE),
+    chr_num   = suppressWarnings(as.numeric(chr_clean)),
+    pos       = as.numeric(start)
+  )
+
+stopifnot(nrow(source_pos) == 1)
+
+source_bp_cum <- source_pos |>
+  inner_join(data_cum, by = "chr_num") |>
+  mutate(bp_cum = pos + bp_add) |>
+  pull(bp_cum)
+
+# ----------------------------- plot -------------------------------------------
+p_inv <- ggplot(plot_data, aes(x = bp_cum, y = log_p, color = color_group)) +
+  geom_point(alpha = 0.75, size = 1.3) +
+  geom_vline(
+    xintercept = source_bp_cum,
+    linetype = "dotted",
+    linewidth = 0.9,
+    color = "black"
+  ) +
+  scale_color_manual(values = c(
+    "Base_Odd"  = "grey45",
+    "Base_Even" = "grey70",
+    "Sig_Odd"   = "firebrick",
+    "Sig_Even"  = "darkred"
+  )) +
+  { if (!is.na(sig_cutoff)) geom_hline(yintercept = sig_cutoff, color = "red", linetype = "dashed") } +
+  scale_x_continuous(
+    breaks = axis_set$center,
+    labels = as.character(axis_set$chr_num)
+  ) +
+  scale_y_continuous(
+    expand = c(0, 0),
+    limits = c(0, max_y * 1.1)
+  ) +
+  labs(
+    title = paste0("Trans-eQTL Targets Across Genome (source = ", source_snp, ")"),
+    subtitle = "x = target gene position; dotted vertical line = source gene position",
+    x = "Chromosome (target gene position)",
+    y = "-log10(P-value)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black")
+  )
+
+p_inv
+
+out_png <- file.path(plot_dir, paste0("plot_trans_inverse_targets_source_", source_snp, "_vline.png"))
+ggsave(out_png, p_inv, width = 10, height = 5)
+
+cat("saved: ", out_png, "\n", sep = "")
+
+
+# ==============================================================================
+# WRITE INVERSE TRANS RESULTS (FIXED SOURCE SNP) TO CSV
+# ==============================================================================
+
+plot_dir <- file.path("output", "trans_by_source_chr")
+source_snp <- "Zm00001eb012470"
+
+# reuse trans_all from section 10 (already loaded above)
+
+# filter to this one source gene
+inv_df <- trans_all |>
+  filter(SNP == source_snp)
+
+cat("rows for source SNP: ", nrow(inv_df), "\n", sep = "")
+stopifnot(nrow(inv_df) > 0)
+
+# write to CSV
+out_csv <- file.path(
+  plot_dir,
+  paste0("BZea_trans_inverse_targets_source_", source_snp, ".csv")
+)
+
+write.csv(inv_df, out_csv, row.names = FALSE)
+
+cat("saved: ", out_csv, "\n", sep = "")
+
+# ==============================================================================
+# 10. TRANS-EQTL FOR A SINGLE GENE (EXCLUDING CIS)
+# ==============================================================================
+# trans-eqtl scan for: Zm00001eb372490
+# coordinates: chr9 6311753 6313844
+# note: we exclude markers in a cis window around the gene, then test all remaining markers genome-wide
+
+print("10. Running trans-eQTL (excluding cis) for Zm00001eb372490")
+
+target_gene_trans  <- "Zm00001eb372490"
+target_chr_trans   <- "chr9"
+target_start_trans <- 6311753
+target_end_trans   <- 6313844
+
+# ---- cis exclusion window (bp) ----
+# adjust if you want a wider/narrower exclusion around the gene
+cis_exclusion_bp <- 1e6
+
+cis_left  <- target_start_trans - cis_exclusion_bp
+cis_right <- target_end_trans   + cis_exclusion_bp
+
+# ---- build marker position table for all genotype markers currently in genotype_mat ----
+marker_coords <- gene_coords |>
+  filter(gene_id %in% rownames(geneGT_var)) |>
+  transmute(
+    snp = gene_id,
+    chr = as.character(chr),
+    pos = as.integer(start)
+  )
+
+# ---- drop cis markers near the target gene on chr9 ----
+cis_marker_mask <- marker_coords$chr == target_chr_trans &
+  marker_coords$pos >= cis_left &
+  marker_coords$pos <= cis_right
+
+snps_keep <- marker_coords$snp[!cis_marker_mask]
+
+# also drop the target gene marker itself if it exists as a marker row
+snps_keep <- setdiff(snps_keep, target_gene_trans)
+
+genotype_mat_trans <- geneGT_var[snps_keep, , drop = FALSE]
+snpspos_trans <- marker_coords |>
+  filter(snp %in% snps_keep)
+
+print(paste0(
+  "   > kept markers for trans test: ",
+  nrow(genotype_mat_trans),
+  " (excluded cis window +/- ",
+  cis_exclusion_bp,
+  " bp)"
+))
+
+# ---- expression slice: target gene only ----
+expr_target <- expr_mat[target_gene_trans, , drop = FALSE]
+
+gene_slice_trans <- SlicedData$new()
+gene_slice_trans$CreateFromMatrix(expr_target)
+gene_slice_trans$ResliceCombined(sliceSize = 2000)
+
+snps_slice_trans <- SlicedData$new()
+snps_slice_trans$CreateFromMatrix(genotype_mat_trans)
+snps_slice_trans$ResliceCombined(sliceSize = 2000)
+
+# ---- gene position table (required if you want MatrixEQTL to reason about cis; here it's mostly bookkeeping) ----
+genepos_trans <- tibble(
+  geneid = target_gene_trans,
+  chr    = target_chr_trans,
+  left   = target_start_trans,
+  right  = target_end_trans
+)
+
+# ---- run MatrixEQTL for trans only (cis already excluded by filtering markers) ----
+me_trans <- Matrix_eQTL_main(
+  snps = snps_slice_trans,
+  gene = gene_slice_trans,
+  cvrt = cvrt_slice,                       # re-use your plate covariates
+  output_file_name = file.path(out_dir, "BZea_trans_eQTL_Zm00001eb372490_excl_cis.tsv"),
+  pvOutputThreshold = 1,                   # keep everything; filter later if you want
+  useModel = modelLINEAR,
+  errorCovariance = numeric(),
+  verbose = TRUE,
+  output_file_name.cis = NULL,             # do not write a cis file for this run
+  pvOutputThreshold.cis = 0,
+  snpspos = snpspos_trans,
+  genepos = genepos_trans,
+  cisDist = cis_exclusion_bp,              # not relied on for exclusion (we already filtered), but consistent
+  pvalue.hist = FALSE,
+  min.pv.by.genesnp = FALSE,
+  noFDRsaveMemory = FALSE
+)
+
+print("   > trans-eQTL run complete!")
+
+# ---- load + save excel-friendly copy ----
+trans_results <- read.delim(
+  file.path(out_dir, "BZea_trans_eQTL_Zm00001eb372490_excl_cis.tsv"),
+  sep = "\t",
+  stringsAsFactors = FALSE
+)
+
+write.csv(
+  trans_results,
+  file.path(out_dir, "BZea_trans_eQTL_Zm00001eb372490_excl_cis_excel.csv"),
+  row.names = FALSE
+)
+
+# ---- quick summary ----
+trans_results <- trans_results |>
+  mutate(
+    is_sig = ifelse(FDR < 0.05, "Significant", "Not Significant"),
+    log_p  = -log10(p.value)
+  )
+
+n_sig_trans <- sum(trans_results$FDR < 0.05)
+print(paste("   > significant trans hits (FDR < 0.05):", n_sig_trans))
+print(paste("   > total trans tests:", nrow(trans_results)))
+
+top_hits_trans <- trans_results |>
+  arrange(p.value) |>
+  head(10)
+
+print("Top 10 trans hits:")
+print(top_hits_trans)
+
+# ==============================================================================
+# 10b. TRANS MANHATTAN PLOT (Zm00001eb372490, cis excluded)
+# ==============================================================================
+
+print("10b. Plotting trans Manhattan...")
+
+trans_plot <- trans_results |>
+  inner_join(snpspos_trans, by = c("SNP" = "snp")) |>
+  mutate(
+    chr_clean = gsub("chr", "", chr, ignore.case = TRUE),
+    chr_num   = as.numeric(chr_clean),
+    pos       = as.numeric(pos),
+    log_p     = -log10(p.value)
+  ) |>
+  filter(!is.na(chr_num), !is.na(pos))
+
+# cumulative x positions
+trans_cum <- trans_plot |>
+  group_by(chr_num) |>
+  summarise(max_bp = max(pos), .groups = "drop") |>
+  arrange(chr_num) |>
+  mutate(bp_add = lag(cumsum(max_bp), default = 0)) |>
+  select(chr_num, bp_add)
+
+trans_plot <- trans_plot |>
+  inner_join(trans_cum, by = "chr_num") |>
+  mutate(
+    bp_cum = pos + bp_add,
+    color_group = case_when(
+      FDR < 0.05 & (chr_num %% 2 == 1) ~ "Sig_Odd",
+      FDR < 0.05 & (chr_num %% 2 == 0) ~ "Sig_Even",
+      (chr_num %% 2 == 1) ~ "Base_Odd",
+      TRUE ~ "Base_Even"
+    )
+  )
+
+axis_set_trans <- trans_plot |>
+  group_by(chr_num) |>
+  summarise(center = (max(bp_cum) + min(bp_cum)) / 2, .groups = "drop") |>
+  arrange(chr_num)
+
+sig_cutoff_trans <- if (any(trans_results$FDR < 0.05)) {
+  -log10(max(trans_results$p.value[trans_results$FDR < 0.05]))
+} else {
+  NA_real_
+}
+
+max_y_trans <- max(trans_plot$log_p, na.rm = TRUE)
+
+p_man_trans <- ggplot(trans_plot, aes(x = bp_cum, y = log_p, color = color_group)) +
+  geom_point(alpha = 0.75, size = 1.3) +
+  scale_color_manual(values = c(
+    "Base_Odd"  = "grey45",
+    "Base_Even" = "grey70",
+    "Sig_Odd"   = "firebrick",
+    "Sig_Even"  = "darkred"
+  )) +
+  { if (!is.na(sig_cutoff_trans)) geom_hline(yintercept = sig_cutoff_trans, color = "red", linetype = "dashed") } +
+  scale_x_continuous(
+    breaks = axis_set_trans$center,
+    labels = as.character(axis_set_trans$chr_num)
+  ) +
+  scale_y_continuous(
+    expand = c(0, 0),
+    limits = c(0, max_y_trans * 1.1)
+  ) +
+  labs(
+    title = "Trans-eQTL Manhattan Plot",
+    subtitle = paste0(
+      "Target gene: Zm00001eb372490; cis excluded +/- ",
+      format(cis_exclusion_bp, scientific = FALSE),
+      " bp; tests = ", nrow(trans_plot)
+    ),
+    x = "Chromosome",
+    y = "-log10(P-value)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    axis.text.x = element_text(size = 10, color = "black")
+  )
+
+p_man_trans
+
+ggsave(file.path(out_dir, "trans_manhattan_tcptf9_excl_cis.png"), p_man_trans, width = 10, height = 5)
+
+# ==============================================================================
+# 10c. TRANS-EQTL + MANHATTAN FOR MULTIPLE TARGET GENES (EXCLUDING CIS)
+# ==============================================================================
+
+print("10c. Running trans-eQTL + Manhattan for multiple targets...")
+
+# cis exclusion window (bp)
+cis_exclusion_bp <- 1e6
+
+# marker position table for all genotype markers
+marker_coords <- gene_coords |>
+  filter(gene_id %in% rownames(geneGT_var)) |>
+  transmute(
+    snp = gene_id,
+    chr = as.character(chr),
+    pos = as.integer(start)
+  )
+
+run_trans_and_manhattan <- function(gene_name, gene_id, gene_chr, gene_start, gene_end) {
+  
+  print(paste0("   > ", gene_name, " (", gene_id, "): trans scan starting..."))
+  
+  cis_left  <- gene_start - cis_exclusion_bp
+  cis_right <- gene_end   + cis_exclusion_bp
+  
+  # exclude cis markers around this gene
+  cis_marker_mask <- marker_coords$chr == gene_chr &
+    marker_coords$pos >= cis_left &
+    marker_coords$pos <= cis_right
+  
+  snps_keep <- marker_coords$snp[!cis_marker_mask]
+  snps_keep <- setdiff(snps_keep, gene_id)
+  
+  genotype_mat_trans <- geneGT_var[snps_keep, , drop = FALSE]
+  snpspos_trans <- marker_coords |>
+    filter(snp %in% snps_keep)
+
+  print(paste0(
+    "      kept markers: ", nrow(genotype_mat_trans),
+    " (excluded cis +/- ", format(cis_exclusion_bp, scientific = FALSE), " bp)"
+  ))
+  
+  # expression: target gene only
+  expr_target <- expr_mat[gene_id, , drop = FALSE]
+  
+  gene_slice_trans <- SlicedData$new()
+  gene_slice_trans$CreateFromMatrix(expr_target)
+  gene_slice_trans$ResliceCombined(sliceSize = 2000)
+  
+  snps_slice_trans <- SlicedData$new()
+  snps_slice_trans$CreateFromMatrix(genotype_mat_trans)
+  snps_slice_trans$ResliceCombined(sliceSize = 2000)
+  
+  genepos_trans <- tibble(
+    geneid = gene_id,
+    chr    = gene_chr,
+    left   = gene_start,
+    right  = gene_end
+  )
+  
+  out_tsv <- file.path(out_dir, paste0("BZea_trans_eQTL_", gene_name, "_excl_cis.tsv"))
+  out_csv <- file.path(out_dir, paste0("BZea_trans_eQTL_", gene_name, "_excl_cis_excel.csv"))
+  out_png <- file.path(out_dir, paste0("trans_manhattan_", gene_name, "_excl_cis.png"))
+  
+  me_trans <- Matrix_eQTL_main(
+    snps = snps_slice_trans,
+    gene = gene_slice_trans,
+    cvrt = cvrt_slice,
+    output_file_name = out_tsv,
+    pvOutputThreshold = 1,
+    useModel = modelLINEAR,
+    errorCovariance = numeric(),
+    verbose = TRUE,
+    output_file_name.cis = NULL,
+    pvOutputThreshold.cis = 0,
+    snpspos = snpspos_trans,
+    genepos = genepos_trans,
+    cisDist = cis_exclusion_bp,
+    pvalue.hist = FALSE,
+    min.pv.by.genesnp = FALSE,
+    noFDRsaveMemory = FALSE
+  )
+  
+  trans_results <- read.delim(out_tsv, sep = "\t", stringsAsFactors = FALSE)
+  
+  write.csv(trans_results, out_csv, row.names = FALSE)
+  
+  trans_results <- trans_results |>
+    mutate(
+      is_sig = ifelse(FDR < 0.05, "Significant", "Not Significant"),
+      log_p  = -log10(p.value)
+    )
+  
+  n_sig_trans <- sum(trans_results$FDR < 0.05)
+  print(paste0("      significant (FDR < 0.05): ", n_sig_trans, " / ", nrow(trans_results)))
+  
+  # ---- Manhattan prep ----
+  trans_plot <- trans_results |>
+    inner_join(snpspos_trans, by = c("SNP" = "snp")) |>
+    mutate(
+      chr_clean = gsub("chr", "", chr, ignore.case = TRUE),
+      chr_num   = as.numeric(chr_clean),
+      pos       = as.numeric(pos),
+      log_p     = -log10(p.value)
+    ) |>
+    filter(!is.na(chr_num), !is.na(pos))
+  
+  trans_cum <- trans_plot |>
+    group_by(chr_num) |>
+    summarise(max_bp = max(pos), .groups = "drop") |>
+    arrange(chr_num) |>
+    mutate(bp_add = lag(cumsum(max_bp), default = 0)) |>
+    select(chr_num, bp_add)
+  
+  trans_plot <- trans_plot |>
+    inner_join(trans_cum, by = "chr_num") |>
+    mutate(
+      bp_cum = pos + bp_add,
+      color_group = case_when(
+        FDR < 0.05 & (chr_num %% 2 == 1) ~ "Sig_Odd",
+        FDR < 0.05 & (chr_num %% 2 == 0) ~ "Sig_Even",
+        (chr_num %% 2 == 1) ~ "Base_Odd",
+        TRUE ~ "Base_Even"
+      )
+    )
+  
+  axis_set_trans <- trans_plot |>
+    group_by(chr_num) |>
+    summarise(center = (max(bp_cum) + min(bp_cum)) / 2, .groups = "drop") |>
+    arrange(chr_num)
+  
+  sig_cutoff_trans <- if (any(trans_results$FDR < 0.05)) {
+    -log10(max(trans_results$p.value[trans_results$FDR < 0.05]))
+  } else {
+    NA_real_
+  }
+  
+  max_y_trans <- max(trans_plot$log_p, na.rm = TRUE)
+  
+  p_man_trans <- ggplot(trans_plot, aes(x = bp_cum, y = log_p, color = color_group)) +
+    geom_point(alpha = 0.75, size = 1.3) +
+    scale_color_manual(values = c(
+      "Base_Odd"  = "grey45",
+      "Base_Even" = "grey70",
+      "Sig_Odd"   = "firebrick",
+      "Sig_Even"  = "darkred"
+    )) +
+    { if (!is.na(sig_cutoff_trans)) geom_hline(yintercept = sig_cutoff_trans, color = "red", linetype = "dashed") } +
+    scale_x_continuous(
+      breaks = axis_set_trans$center,
+      labels = as.character(axis_set_trans$chr_num)
+    ) +
+    scale_y_continuous(
+      expand = c(0, 0),
+      limits = c(0, max_y_trans * 1.1)
+    ) +
+    labs(
+      title = paste0("Trans-eQTL Manhattan: ", gene_name),
+      subtitle = paste0(
+        gene_id, " (", gene_chr, ":", gene_start, "-", gene_end, "); cis excluded +/- ",
+        format(cis_exclusion_bp, scientific = FALSE), " bp; tests = ", nrow(trans_plot)
+      ),
+      x = "Chromosome",
+      y = "-log10(P-value)"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "none",
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      axis.text.x = element_text(size = 10, color = "black")
+    )
+  
+  p_man_trans
+  ggsave(out_png, p_man_trans, width = 10, height = 5)
+  
+  print(paste0("      saved: ", out_png))
+  
+  return(invisible(list(results = trans_results, plot = p_man_trans)))
+}
+
+# targets
+targets <- tribble(
+  ~gene_name, ~gene_id,           ~chr,   ~start,    ~end,
+  "hpc1",     "Zm00001eb121780",  "chr3",  8496140,   8501237,
+  "nlp1",     "Zm00001eb231720",  "chr5",  78778520,  78781733,
+  "nrg11",    "Zm00001eb206940",  "chr4",  244043231, 244045806
+)
+
+# run all
+trans_runs <- pmap(
+  targets,
+  ~run_trans_and_manhattan(..1, ..2, ..3, ..4, ..5)
+)
+
+print("10c. Done: trans Manhattan plots saved for hpc1, nlp1, nrg11.")
 

@@ -1,0 +1,453 @@
+# ==============================================================================
+# INDIVIDUAL GENE EQTL PLOTS
+# minimal setup for plotting expression of selected genes by introgression status
+# required files in working directory:
+#   results_list_new_name.rds
+#   Zea_mays_counts.txt
+#   metadata.csv
+#   Zea_mays.gtf
+# ==============================================================================
+
+library(tidyverse)
+library(rtracklayer)
+library(GenomicRanges)
+
+# ##############################################################################
+# ##                                                                          ##
+# ##   >>> CHANGE THIS GENE ID TO ANALYZE A DIFFERENT GENE <<<               ##
+# ##                                                                          ##
+# ##############################################################################
+
+FOCUS_GENE <- "Zm00001eb012750"
+
+# partner genes for co-expression scatter plots against FOCUS_GENE
+PARTNER_GENES <- c(
+  "Zm00001eb399680",
+  "Zm00001eb078420",
+  "Zm00001eb179680"
+)
+
+# partner genes for "mixed-only" co-expression plots
+PARTNER_GENES_MIXED <- c(
+  "Zm00001eb399680",
+  "Zm00001eb179680"
+)
+
+# ##############################################################################
+
+# ------------------------------- output dir -----------------------------------
+
+out_dir <- file.path("output", "individual_gene_plots")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+# ------------------------------- load data ------------------------------------
+
+teogeno  <- readRDS("results_list_new_name.rds")
+counts   <- read.delim("Zea_mays_counts.txt", check.names = FALSE, row.names = 1)
+metadata <- read.csv("metadata.csv", stringsAsFactors = FALSE)
+
+teogeno <- teogeno[!duplicated(names(teogeno))]
+
+# ------------------------------ align samples ---------------------------------
+
+sample_df <- metadata |>
+  dplyr::filter(
+    sample_id %in% colnames(counts),
+    plate %in% c(1, 2, 3, 4)                # keep only sequenced plates
+  ) |>
+  dplyr::transmute(
+    sample_id,
+    taxa = factor(taxa),
+    plate = factor(plate),
+    genotype_teogeno_key = dplyr::if_else(
+      genotype == "B73",
+      "B73.B",
+      paste0(genotype, ".B")
+    )
+  ) |>
+  dplyr::filter(genotype_teogeno_key %in% names(teogeno)) |>
+  dplyr::arrange(sample_id)
+
+counts <- counts[, as.character(sample_df$sample_id), drop = FALSE]
+
+# --------------------------- normalize expression -----------------------------
+
+# NOTE: using raw library-size CPM (not TMM-normalized) here intentionally.
+# Consistent with the eQTL scripts (13a, 13b).
+# The PCA/DE scripts (10, 11, 12) use edgeR TMM CPM instead.
+lib_size <- colSums(counts)
+expr_mat <- as.matrix(counts)
+expr_mat <- log2((t(t(expr_mat) / lib_size)) * 1e6 + 1)
+
+# ---------------------------- gene coordinates --------------------------------
+
+gtf <- import("Zea_mays.gtf")
+gtf_df <- as.data.frame(gtf)
+
+gene_coords <- gtf_df |>
+  dplyr::filter(!is.na(gene_id)) |>
+  dplyr::group_by(gene_id) |>
+  dplyr::summarise(
+    chr = as.character(seqnames[1]),
+    start = min(start),
+    end = max(end),
+    .groups = "drop"
+  ) |>
+  dplyr::filter(gene_id %in% rownames(expr_mat))
+
+# ----------------------- introgression segments only --------------------------
+
+seg_df <- purrr::imap_dfr(teogeno, ~{
+  .x |>
+    dplyr::filter(V4 == "Introgression") |>
+    dplyr::transmute(
+      key = .y,
+      chr = V1,
+      start = as.integer(V2),
+      end = as.integer(V3)
+    )
+})
+
+segs_gr <- GRanges(
+  seqnames = seg_df$chr,
+  ranges = IRanges(seg_df$start, seg_df$end),
+  key = seg_df$key
+)
+
+key_to_samples <- split(sample_df$sample_id, sample_df$genotype_teogeno_key)
+
+# ------------------------------ colors ----------------------------------------
+
+taxa_colors <- c(
+  "B73"  = "#03bec4",
+  "Bals" = "#f364e2",
+  "Zdip" = "#f8756d",
+  "Hueh" = "#b69d00",
+  "Zlux" = "#00b837",
+  "Dura" = "#609bfe",
+  "Nabo" = "#609bfe",
+  "Mesa" = "#609bfe",
+  "Chal" = "#609bfe",
+  "Nobo" = "#609bfe"
+)
+
+# --------------------------- genes to plot ------------------------------------
+
+genes_to_plot <- FOCUS_GENE
+
+# --------------------------- plotting function --------------------------------
+
+plot_one_gene <- function(target_gene) {
+  
+  if (!target_gene %in% gene_coords$gene_id) {
+    stop(paste("gene not found in gene_coords:", target_gene))
+  }
+  
+  if (!target_gene %in% rownames(expr_mat)) {
+    stop(paste("gene not found in expression matrix:", target_gene))
+  }
+  
+  gene_row <- gene_coords |>
+    dplyr::filter(gene_id == target_gene)
+  
+  gene_gr <- GRanges(
+    seqnames = gene_row$chr,
+    ranges = IRanges(gene_row$start, gene_row$end),
+    gene_id = gene_row$gene_id
+  )
+  
+  hits <- findOverlaps(segs_gr, gene_gr)
+  overlapping_keys <- unique(segs_gr$key[queryHits(hits)])
+  
+  gene_geno <- rep(0, nrow(sample_df))
+  names(gene_geno) <- sample_df$sample_id
+  
+  for (k in overlapping_keys) {
+    s_ids <- key_to_samples[[k]]
+    if (!is.null(s_ids)) {
+      gene_geno[as.character(s_ids)] <- 1
+    }
+  }
+  
+  gene_expr <- expr_mat[target_gene, sample_df$sample_id]
+  
+  plot_df <- tibble(
+    sample_id = sample_df$sample_id,
+    Genotype = factor(
+      ifelse(gene_geno == 1, "Teosinte Introgression", "B73 Background"),
+      levels = c("B73 Background", "Teosinte Introgression")
+    ),
+    Expression = as.numeric(gene_expr)
+  ) |>
+    dplyr::left_join(
+      sample_df |>
+        dplyr::select(sample_id, taxa),
+      by = "sample_id"
+    ) |>
+    dplyr::mutate(
+      point_color = ifelse(Genotype == "Teosinte Introgression", as.character(taxa), "B73")
+    )
+  
+  group_stats <- plot_df |>
+    dplyr::group_by(Genotype) |>
+    dplyr::summarise(
+      mean_expr = mean(Expression),
+      sd_expr = sd(Expression),
+      .groups = "drop"
+    )
+  
+  p_gene <- ggplot(plot_df, aes(x = Genotype, y = Expression)) +
+    geom_jitter(
+      aes(fill = point_color),
+      shape = 21,
+      size = 3,
+      alpha = 0.75,
+      color = "grey30",
+      position = position_jitter(width = 0.2)
+    ) +
+    geom_errorbar(
+      data = group_stats,
+      aes(
+        x = Genotype,
+        ymin = mean_expr - sd_expr,
+        ymax = mean_expr + sd_expr
+      ),
+      width = 0,
+      linewidth = 1,
+      inherit.aes = FALSE
+    ) +
+    geom_point(
+      data = group_stats,
+      aes(x = Genotype, y = mean_expr),
+      shape = 16,
+      size = 4,
+      color = "black",
+      inherit.aes = FALSE
+    ) +
+    scale_x_discrete(labels = c(
+      "B73 Background" = "B73",
+      "Teosinte Introgression" = "Teo"
+    )) +
+    scale_fill_manual(
+      values = taxa_colors,
+      name = "teosinte taxa"
+    ) +
+    labs(
+      x = "genotype",
+      y = "normalized expression (log2 cpm)",
+      title = paste("Effect of introgression on", target_gene),
+      subtitle = "Teo points colored by taxa; black = mean ± SD"
+    ) +
+    theme_minimal(base_size = 18) +
+    theme(
+      axis.text.x = element_text(size = 14, face = "bold"),
+      plot.title = element_text(face = "bold")
+    )
+  
+  print(p_gene)
+  
+  ggsave(
+    file.path(out_dir, paste0("eQTL_", target_gene, "_taxa.png")),
+    p_gene,
+    width = 5,
+    height = 5
+  )
+  
+  return(plot_df)
+}
+
+# ------------------------------ run plots -------------------------------------
+
+plot_results <- purrr::map(genes_to_plot, plot_one_gene)
+names(plot_results) <- genes_to_plot
+
+# ---------------------- pairwise co-expression plots --------------------------
+
+target_gene <- FOCUS_GENE
+partner_genes <- PARTNER_GENES
+
+get_gene_intro_status <- function(target_gene) {
+  
+  if (!target_gene %in% gene_coords$gene_id) {
+    stop(paste("gene not found in gene_coords:", target_gene))
+  }
+  
+  gene_row <- gene_coords |>
+    dplyr::filter(gene_id == target_gene)
+  
+  gene_gr <- GRanges(
+    seqnames = gene_row$chr,
+    ranges = IRanges(gene_row$start, gene_row$end),
+    gene_id = gene_row$gene_id
+  )
+  
+  hits <- findOverlaps(segs_gr, gene_gr)
+  overlapping_keys <- unique(segs_gr$key[queryHits(hits)])
+  
+  gene_geno <- rep(0, nrow(sample_df))
+  names(gene_geno) <- sample_df$sample_id
+  
+  for (k in overlapping_keys) {
+    s_ids <- key_to_samples[[k]]
+    if (!is.null(s_ids)) {
+      gene_geno[as.character(s_ids)] <- 1
+    }
+  }
+  
+  tibble(
+    sample_id = sample_df$sample_id,
+    intro_status = gene_geno
+  )
+}
+
+plot_gene_pair <- function(y_gene, x_gene) {
+  
+  if (!y_gene %in% rownames(expr_mat)) {
+    stop(paste("y gene not found in expression matrix:", y_gene))
+  }
+  
+  if (!x_gene %in% rownames(expr_mat)) {
+    stop(paste("x gene not found in expression matrix:", x_gene))
+  }
+  
+  y_status <- get_gene_intro_status(y_gene) |>
+    dplyr::rename(y_intro = intro_status)
+  
+  x_status <- get_gene_intro_status(x_gene) |>
+    dplyr::rename(x_intro = intro_status)
+  
+  plot_df <- tibble(
+    sample_id = sample_df$sample_id,
+    x_expr = as.numeric(expr_mat[x_gene, sample_df$sample_id]),
+    y_expr = as.numeric(expr_mat[y_gene, sample_df$sample_id])
+  ) |>
+    dplyr::left_join(y_status, by = "sample_id") |>
+    dplyr::left_join(x_status, by = "sample_id") |>
+    dplyr::mutate(
+      pair_status = dplyr::case_when(
+        x_intro == 0 & y_intro == 0 ~ "B73 / B73",
+        x_intro == 1 & y_intro == 1 ~ "Teo / Teo",
+        TRUE ~ "Mixed"
+      ),
+      pair_status = factor(
+        pair_status,
+        levels = c("B73 / B73", "Mixed", "Teo / Teo")
+      )
+    )
+  
+  p_pair <- ggplot(plot_df, aes(x = x_expr, y = y_expr, color = pair_status)) +
+    geom_point(size = 3, alpha = 0.8) +
+    geom_smooth(method = "lm", se = FALSE, linewidth = 1) +
+    labs(
+      x = paste0(x_gene, " expression (log2 cpm)"),
+      y = paste0(y_gene, " expression (log2 cpm)"),
+      title = paste("Co-expression:", y_gene, "vs", x_gene),
+      subtitle = "point color = introgression status for the two genes"
+    ) +
+    scale_color_manual(
+      values = c(
+        "B73 / B73" = "gray50",
+        "Mixed" = "goldenrod3",
+        "Teo / Teo" = "forestgreen"
+      )
+    ) +
+    theme_minimal(base_size = 18) +
+    theme(
+      plot.title = element_text(face = "bold")
+    )
+  
+  print(p_pair)
+  
+  ggsave(
+    file.path(out_dir, paste0("coexpression_", y_gene, "_vs_", x_gene, ".png")),
+    p_pair,
+    width = 6,
+    height = 5
+  )
+  
+  return(plot_df)
+}
+
+pair_plot_results <- purrr::map(partner_genes, ~plot_gene_pair(target_gene, .x))
+names(pair_plot_results) <- partner_genes
+
+# ---------------- mixed-only co-expression plots by which gene is teo ---------
+
+target_gene_mixed <- FOCUS_GENE
+partner_genes_mixed <- PARTNER_GENES_MIXED
+
+plot_gene_pair_mixed_only <- function(y_gene, x_gene) {
+  
+  if (!y_gene %in% rownames(expr_mat)) {
+    stop(paste("y gene not found in expression matrix:", y_gene))
+  }
+  
+  if (!x_gene %in% rownames(expr_mat)) {
+    stop(paste("x gene not found in expression matrix:", x_gene))
+  }
+  
+  y_status <- get_gene_intro_status(y_gene) |>
+    dplyr::rename(y_intro = intro_status)
+  
+  x_status <- get_gene_intro_status(x_gene) |>
+    dplyr::rename(x_intro = intro_status)
+  
+  plot_df <- tibble(
+    sample_id = sample_df$sample_id,
+    x_expr = as.numeric(expr_mat[x_gene, sample_df$sample_id]),
+    y_expr = as.numeric(expr_mat[y_gene, sample_df$sample_id])
+  ) |>
+    dplyr::left_join(y_status, by = "sample_id") |>
+    dplyr::left_join(x_status, by = "sample_id") |>
+    dplyr::mutate(
+      mixed_group = dplyr::case_when(
+        y_intro == 1 & x_intro == 0 ~ paste0(y_gene, " teo"),
+        y_intro == 0 & x_intro == 1 ~ paste0(x_gene, " teo"),
+        TRUE ~ NA_character_
+      )
+    ) |>
+    dplyr::filter(!is.na(mixed_group)) |>
+    dplyr::mutate(
+      mixed_group = factor(
+        mixed_group,
+        levels = c(paste0(y_gene, " teo"), paste0(x_gene, " teo"))
+      )
+    )
+  
+  p_pair <- ggplot(plot_df, aes(x = x_expr, y = y_expr, color = mixed_group)) +
+    geom_point(size = 3, alpha = 0.85) +
+    labs(
+      x = paste0(x_gene, " expression (log2 cpm)"),
+      y = paste0(y_gene, " expression (log2 cpm)"),
+      title = paste("Mixed samples only:", y_gene, "vs", x_gene),
+      subtitle = "blue = y-axis gene is teo, purple = x-axis gene is teo"
+    ) +
+    scale_color_manual(
+      values = setNames(
+        c("dodgerblue3", "purple3"),
+        c(paste0(y_gene, " teo"), paste0(x_gene, " teo"))
+      )
+    ) +
+    theme_minimal(base_size = 18) +
+    theme(
+      plot.title = element_text(face = "bold")
+    )
+  
+  print(p_pair)
+  
+  ggsave(
+    file.path(out_dir, paste0("coexpression_mixed_only_", y_gene, "_vs_", x_gene, ".png")),
+    p_pair,
+    width = 6,
+    height = 5
+  )
+  
+  return(plot_df)
+}
+
+pair_plot_results_mixed_only <- purrr::map(
+  partner_genes_mixed,
+  ~plot_gene_pair_mixed_only(target_gene_mixed, .x)
+)
+
+names(pair_plot_results_mixed_only) <- partner_genes_mixed
