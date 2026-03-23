@@ -2,10 +2,10 @@
 library(dplyr)
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-work_dir    <- "."
-gtf_file    <- file.path(work_dir, "Zea_mays.gtf")
-counts_file <- file.path(work_dir, "Zea_mays_counts.txt")
-output_file <- file.path(work_dir, "output", "Zea_mays_TPM.txt")
+data_dir    <- "data"
+gtf_file    <- file.path(data_dir, "Zea_mays.gtf")
+counts_file <- file.path(data_dir, "Zea_mays_counts.txt")
+output_file <- file.path("output", "Zea_mays_TPM.txt")
 
 # ── 1. Load counts ─────────────────────────────────────────────────────────────
 counts <- read.table(counts_file, header = TRUE, sep = "\t", 

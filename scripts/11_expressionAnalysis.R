@@ -10,13 +10,15 @@ setwd("C:/Users/Hannah Pil/Documents/gemmalab/BZea/BZea RNA-seq/BZeaBRBseq")
 # ============================
 # load data
 # ============================
-counts <- read.table("Zea_mays_counts.txt",
+data_dir <- "data"
+
+counts <- read.table(file.path(data_dir, "Zea_mays_counts.txt"),
                      header = TRUE,
                      row.names = 1,
                      sep = "\t",
                      check.names = FALSE)
 
-meta_all <- read.csv("metadata.csv", stringsAsFactors = FALSE)
+meta_all <- read.csv(file.path(data_dir, "metadata.csv"), stringsAsFactors = FALSE)
 
 # keep only complete rows (plate 1–4)
 meta <- subset(meta_all, plate %in% c(1, 2, 3, 4))
@@ -43,7 +45,7 @@ mat <- cpm(dge, log = TRUE, prior.count = 1)
 # ============================
 # load allelic series (genes to include)
 # ============================
-allelic <- read.csv("Allelic_series_for_expression.csv",
+allelic <- read.csv(file.path(data_dir, "Allelic_series_for_expression.csv"),
                     check.names = FALSE)
 
 genes_from_allelic <- colnames(allelic)
@@ -60,7 +62,7 @@ carriers <- allelic %>%
 # ============================
 # candidate genes + categories (annotation with clear priority)
 # ============================
-cand <- read.csv("candidate_genes.csv")
+cand <- read.csv(file.path(data_dir, "candidate_genes.csv"))
 
 keep_cats <- c("FT", "targ", "GWAS_GBS_landraces_N", "Fst_landraces_N")
 
@@ -92,7 +94,7 @@ cand_sub <- cand_sub_raw %>%
 # load gene names (for aesthetics)
 # expects columns: v5_gene_id, gene_name
 # ============================
-gene_names <- read.csv("gene_names.csv") %>%
+gene_names <- read.csv(file.path(data_dir, "gene_names.csv")) %>%
   rename(gene_id = v5_gene_id)
 
 # ============================

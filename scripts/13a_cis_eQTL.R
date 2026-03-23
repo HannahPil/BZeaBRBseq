@@ -25,9 +25,10 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 print("1. Loading data...")
 
-teogeno  <- readRDS("results_list_new_name.rds")
-counts   <- read.delim("Zea_mays_counts.txt", check.names = FALSE, row.names = 1)
-metadata <- read.csv("metadata.csv", stringsAsFactors = FALSE)
+data_dir <- "data"
+teogeno  <- readRDS(file.path(data_dir, "results_list_new_name.rds"))
+counts   <- read.delim(file.path(data_dir, "Zea_mays_counts.txt"), check.names = FALSE, row.names = 1)
+metadata <- read.csv(file.path(data_dir, "metadata.csv"), stringsAsFactors = FALSE)
 
 teogeno <- teogeno[!duplicated(names(teogeno))]
 
@@ -59,7 +60,7 @@ counts <- counts[, as.character(sample_df$sample_id)]
 
 print("3. Processing GTF coordinates...")
 
-gtf <- import("Zea_mays.gtf")
+gtf <- import(file.path(data_dir, "Zea_mays.gtf"))
 gtf_df <- as.data.frame(gtf)
 
 gene_coords <- gtf_df |>

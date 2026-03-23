@@ -48,11 +48,13 @@ cat("  slice_size  = ", slice_size, "\n", sep = "")
 # ==============================================================================
 # 1. LOAD DATA
 # ==============================================================================
+data_dir <- "data"
+
 cat("\n1. Loading data...\n")
 
-teogeno  <- readRDS("results_list_new_name.rds")
-counts   <- read.delim("Zea_mays_counts.txt", check.names = FALSE, row.names = 1)
-metadata <- read.csv("metadata.csv", stringsAsFactors = FALSE)
+teogeno  <- readRDS(file.path(data_dir, "results_list_new_name.rds"))
+counts   <- read.delim(file.path(data_dir, "Zea_mays_counts.txt"), check.names = FALSE, row.names = 1)
+metadata <- read.csv(file.path(data_dir, "metadata.csv"), stringsAsFactors = FALSE)
 
 teogeno <- teogeno[!duplicated(names(teogeno))]
 
@@ -84,7 +86,7 @@ cat("  samples kept: ", nrow(sample_df), "\n", sep = "")
 # ==============================================================================
 cat("\n3. Importing GTF + building gene coordinates...\n")
 
-gtf <- import("Zea_mays.gtf")
+gtf <- import(file.path(data_dir, "Zea_mays.gtf"))
 gtf_df <- as.data.frame(gtf)
 
 gene_coords <- gtf_df |>

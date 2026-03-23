@@ -32,7 +32,8 @@ suppressPackageStartupMessages({
 # ==============================================================================
 cis_csv  <- file.path("output", "cis_eQTL", "BZea_Significant_eQTLs.csv")
 trans_gz <- file.path("output", "trans_by_source_chr", "BZea_trans_ALL_sources_combined_pv1e-04.tsv.gz")
-gtf_file <- "Zea_mays.gtf"
+data_dir <- "data"
+gtf_file <- file.path(data_dir, "Zea_mays.gtf")
 
 out_dir <- file.path("output", "eqtl_architecture_from_csv")
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)

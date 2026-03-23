@@ -7,8 +7,9 @@ library(limma)
 library(purrr)
 
 # files
-counts_file <- "Zea_mays_counts.txt"
-meta_file   <- "metadata.csv"
+data_dir    <- "data"
+counts_file <- file.path(data_dir, "Zea_mays_counts.txt")
+meta_file   <- file.path(data_dir, "metadata.csv")
 
 # reference taxa for all contrasts
 ref_taxa <- "B73"
@@ -125,7 +126,7 @@ volcano_df <- volcano_df %>%
 # -----------------------------------------
 # candidate categories: join + focus
 # -----------------------------------------
-cand <- read.csv("candidate_genes.csv", stringsAsFactors = FALSE)
+cand <- read.csv(file.path(data_dir, "candidate_genes.csv"), stringsAsFactors = FALSE)
 
 cand_cat <- cand %>%
   group_by(gene_id) %>%
@@ -197,7 +198,7 @@ gene_id <- "Zm00001eb121780"
 
 expr_file     <- file.path(out_dir, "edgeR_log2cpm_TMM_filtered.csv")
 meta_file     <- "metadata.csv"
-allelic_file  <- "Allelic_series_for_expression.csv"
+allelic_file  <- file.path(data_dir, "Allelic_series_for_expression.csv")
 
 # ----------------------------
 # load expression
@@ -263,7 +264,7 @@ library(vroom)
 library(dplyr)
 library(stringr)
 
-gtf_path <- "Zea_mays.gtf"  # can be .gtf or .gtf.gz
+gtf_path <- file.path(data_dir, "Zea_mays.gtf")  # can be .gtf or .gtf.gz
 
 gtf_tx <- vroom::vroom(
   file = gtf_path,
