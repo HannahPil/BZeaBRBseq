@@ -263,6 +263,271 @@ plot_one_gene <- function(target_gene) {
 plot_results <- purrr::map(genes_to_plot, plot_one_gene)
 names(plot_results) <- genes_to_plot
 
+# ##############################################################################
+# ##  SISTER-LINE ANALYSIS                                                    ##
+# ##  Compare expression of FOCUS_GENE in teo-carriers vs their BC1 sisters   ##
+# ##  (related lines sharing the same BC1 parent that lack the introgression) ##
+# ##############################################################################
+
+# ---- metadata with pedigree info (exclude checks) ----------------------------
+
+meta_ped <- metadata |>
+  dplyr::filter(
+    sample_id %in% colnames(expr_mat),
+    plate %in% c(1, 2, 3, 4),
+    !genotype %in% c("B73", "Purple Check")
+  ) |>
+  dplyr::mutate(
+    bc1_family = substr(genotype, 1, 10)
+  )
+
+# ---- introgression status for FOCUS_GENE per sample --------------------------
+
+focus_row <- gene_coords |> dplyr::filter(gene_id == FOCUS_GENE)
+focus_gr  <- GRanges(
+  seqnames = focus_row$chr,
+  ranges   = IRanges(focus_row$start, focus_row$end)
+)
+
+hits_focus <- findOverlaps(segs_gr, focus_gr)
+overlapping_keys <- unique(segs_gr$key[queryHits(hits_focus)])
+
+focus_geno <- rep(0L, nrow(sample_df))
+names(focus_geno) <- sample_df$sample_id
+for (k in overlapping_keys) {
+  s_ids <- key_to_samples[[k]]
+  if (!is.null(s_ids)) focus_geno[as.character(s_ids)] <- 1L
+}
+
+meta_ped <- meta_ped |>
+  dplyr::mutate(
+    has_teo = focus_geno[sample_id],
+    allele  = ifelse(has_teo == 1, "Teosinte", "B73")
+  )
+
+# ---- list all lines carrying teosinte for FOCUS_GENE -------------------------
+
+teo_carriers_df <- meta_ped |>
+  dplyr::filter(has_teo == 1) |>
+  dplyr::select(sample_id, genotype, taxa, bc1_family) |>
+  dplyr::distinct()
+
+cat("\n=== Lines carrying teosinte introgression at", FOCUS_GENE, "===\n")
+print(as.data.frame(teo_carriers_df), row.names = FALSE)
+
+write.csv(
+  teo_carriers_df,
+  file.path(out_dir, paste0(FOCUS_GENE, "_teo_carriers.csv")),
+  row.names = FALSE
+)
+
+# ---- find sister lines (same BC1 family, no introgression) -------------------
+
+teo_families <- unique(teo_carriers_df$bc1_family)
+
+sister_df <- meta_ped |>
+  dplyr::filter(
+    bc1_family %in% teo_families,   # same BC1 parent
+    has_teo == 0                     # but lacks introgression at FOCUS_GENE
+  ) |>
+  dplyr::select(sample_id, genotype, taxa, bc1_family) |>
+  dplyr::distinct()
+
+cat("\n=== Sister lines (same BC1, B73 allele at", FOCUS_GENE, ") ===\n")
+print(as.data.frame(sister_df), row.names = FALSE)
+cat("\nFamilies with teo + sister pairs:", length(intersect(teo_families, sister_df$bc1_family)), "\n")
+
+# ---- build paired expression table ------------------------------------------
+
+paired_df <- meta_ped |>
+  dplyr::filter(bc1_family %in% teo_families) |>
+  dplyr::mutate(
+    expression = as.numeric(expr_mat[FOCUS_GENE, sample_id])
+  )
+
+# ---- effect size plot: teo vs B73 within BC1 families ------------------------
+
+# family means for effect size
+family_means <- paired_df |>
+  dplyr::group_by(bc1_family, allele) |>
+  dplyr::summarise(
+    mean_expr = mean(expression, na.rm = TRUE),
+    n = dplyr::n(),
+    .groups = "drop"
+  ) |>
+  tidyr::pivot_wider(
+    names_from  = allele,
+    values_from = c(mean_expr, n)
+  ) |>
+  dplyr::filter(!is.na(mean_expr_Teosinte), !is.na(mean_expr_B73)) |>
+  dplyr::mutate(
+    effect = mean_expr_Teosinte - mean_expr_B73
+  ) |>
+  dplyr::left_join(
+    meta_ped |> dplyr::select(bc1_family, taxa) |> dplyr::distinct(),
+    by = "bc1_family"
+  )
+
+cat("\n=== Effect sizes (teo - B73) within BC1 families ===\n")
+print(as.data.frame(family_means |> dplyr::select(bc1_family, taxa, effect, n_Teosinte, n_B73)), row.names = FALSE)
+
+write.csv(
+  family_means,
+  file.path(out_dir, paste0(FOCUS_GENE, "_sister_effect_sizes.csv")),
+  row.names = FALSE
+)
+
+# ---- waterfall bar chart (effect per family, sorted) -------------------------
+
+# drop families with NA taxa (no teosinte annotation)
+family_means_sorted <- family_means |>
+  dplyr::filter(!is.na(taxa)) |>
+  dplyr::arrange(effect) |>
+  dplyr::mutate(bc1_family = factor(bc1_family, levels = bc1_family))
+
+p_waterfall <- ggplot(family_means_sorted, aes(x = bc1_family, y = effect)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+  geom_col(aes(fill = taxa), width = 0.7, alpha = 0.85) +
+  scale_fill_manual(values = taxa_colors, name = "Taxa") +
+  labs(
+    x = "BC1 family",
+    y = "Effect size (Teo - B73, log2 CPM)",
+    title = paste("Introgression effect by family:", FOCUS_GENE),
+    subtitle = "Positive = teosinte allele upregulates"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+    plot.title  = element_text(face = "bold")
+  )
+
+print(p_waterfall)
+
+ggsave(
+  file.path(out_dir, paste0(FOCUS_GENE, "_waterfall.png")),
+  p_waterfall,
+  width = max(6, nrow(family_means_sorted) * 0.4 + 2),
+  height = 5
+)
+
+# ---- faceted jitter plots per family (mean ± SD style) -----------------------
+# Same style as the main B73-vs-Teo jitter plot: filled circles colored by taxa,
+# black mean dot, and SD error bar per allele group within each BC1 family.
+
+# helper function to build the faceted jitter plot
+build_facet_jitter <- function(df_fam, fam_levels, show_legend = TRUE,
+                               title_suffix = "") {
+
+  df_fam <- df_fam |>
+    dplyr::mutate(
+      bc1_family = factor(bc1_family, levels = fam_levels),
+      allele     = factor(allele, levels = c("B73", "Teosinte"))
+    )
+
+  fstats <- df_fam |>
+    dplyr::group_by(bc1_family, allele) |>
+    dplyr::summarise(
+      mean_expr = mean(expression, na.rm = TRUE),
+      sd_expr   = sd(expression, na.rm = TRUE),
+      n         = dplyr::n(),
+      .groups   = "drop"
+    ) |>
+    dplyr::mutate(sd_expr = ifelse(is.na(sd_expr), 0, sd_expr))
+
+  p <- ggplot(df_fam, aes(x = allele, y = expression)) +
+    geom_jitter(
+      aes(fill = taxa),
+      shape    = 21,
+      size     = 3,
+      alpha    = 0.75,
+      color    = "grey30",
+      position = position_jitter(width = 0.2)
+    ) +
+    geom_errorbar(
+      data = fstats,
+      aes(
+        x    = allele,
+        ymin = mean_expr - sd_expr,
+        ymax = mean_expr + sd_expr
+      ),
+      width     = 0,
+      linewidth = 1,
+      inherit.aes = FALSE
+    ) +
+    geom_point(
+      data = fstats,
+      aes(x = allele, y = mean_expr),
+      shape = 16,
+      size  = 4,
+      color = "black",
+      inherit.aes = FALSE
+    ) +
+    facet_wrap(~ bc1_family) +
+    scale_fill_manual(values = taxa_colors, name = "teosinte taxa") +
+    scale_x_discrete(labels = c("B73" = "B73", "Teosinte" = "Teo")) +
+    labs(
+      x = "genotype",
+      y = "normalized expression (log2 cpm)",
+      title = paste0("Per-family expression: ", FOCUS_GENE, title_suffix),
+      subtitle = "Each panel = one BC1 family; black = mean ± SD"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      plot.title  = element_text(face = "bold"),
+      strip.text  = element_text(size = 14, face = "bold"),
+      axis.text.x = element_text(size = 11, face = "bold")
+    )
+
+  if (!show_legend) p <- p + theme(legend.position = "none")
+
+  return(p)
+}
+
+# sort families by effect size; keep only non-NA taxa
+family_order <- levels(family_means_sorted$bc1_family)
+
+paired_df_fam <- paired_df |>
+  dplyr::filter(bc1_family %in% teo_families, !is.na(taxa)) |>
+  dplyr::filter(bc1_family %in% family_means_sorted$bc1_family)
+
+# -- all families plot --
+p_facet <- build_facet_jitter(paired_df_fam, family_order)
+print(p_facet)
+
+n_fam <- length(unique(paired_df_fam$bc1_family))
+ggsave(
+  file.path(out_dir, paste0(FOCUS_GENE, "_faceted_families.png")),
+  p_facet,
+  width  = min(16, max(6, ceiling(sqrt(n_fam)) * 3)),
+  height = min(14, max(4, ceiling(n_fam / ceiling(sqrt(n_fam))) * 3))
+)
+
+# -- top 5 families by absolute effect size (no legend) --
+top5_families <- family_means_sorted |>
+  dplyr::arrange(dplyr::desc(abs(effect))) |>
+  dplyr::slice_head(n = 5) |>
+  dplyr::arrange(effect) |>
+  dplyr::pull(bc1_family) |>
+  as.character()
+
+paired_df_top5 <- paired_df_fam |>
+  dplyr::filter(bc1_family %in% top5_families)
+
+p_top5 <- build_facet_jitter(
+  paired_df_top5,
+  top5_families,
+  show_legend  = FALSE,
+  title_suffix = " (top 5)"
+)
+print(p_top5)
+
+ggsave(
+  file.path(out_dir, paste0(FOCUS_GENE, "_faceted_top5.png")),
+  p_top5,
+  width  = 12,
+  height = 4
+)
+
 # ---------------------- pairwise co-expression plots --------------------------
 
 target_gene <- FOCUS_GENE
