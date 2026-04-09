@@ -173,6 +173,10 @@ cat(paste("Final matrix:", nrow(datExpr), "samples x", ncol(datExpr), "genes\n")
 # SECTION 3: SOFT-THRESHOLD SELECTION
 # ==============================================================================
 
+# WGCNA overrides base::cor() with its own version. We must use WGCNA's cor
+# during network construction, then restore base R's cor for downstream code.
+cor <- WGCNA::cor
+
 powers <- c(1:10, seq(12, 20, 2))
 
 sft <- pickSoftThreshold(
@@ -258,6 +262,9 @@ net <- blockwiseModules(
 # convert numeric labels to color labels
 moduleColors <- labels2colors(net$colors)
 names(moduleColors) <- colnames(datExpr)
+
+# restore base R cor() now that WGCNA network construction is done
+cor <- stats::cor
 
 cat(paste("Number of modules detected:", length(unique(moduleColors)) - 1, "(+ grey)\n"))
 cat("Module sizes:\n")

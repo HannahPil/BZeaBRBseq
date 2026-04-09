@@ -278,7 +278,7 @@ meta_ped <- metadata |>
     !genotype %in% c("B73", "Purple Check")
   ) |>
   dplyr::mutate(
-    bc1_family = substr(genotype, 1, 10)
+    bc1_family = substr(genotype, 1, 13)
   )
 
 # ---- introgression status for FOCUS_GENE per sample --------------------------
@@ -336,6 +336,28 @@ sister_df <- meta_ped |>
 cat("\n=== Sister lines (same BC1, B73 allele at", FOCUS_GENE, ") ===\n")
 print(as.data.frame(sister_df), row.names = FALSE)
 cat("\nFamilies with teo + sister pairs:", length(intersect(teo_families, sister_df$bc1_family)), "\n")
+
+# ---- comprehensive carrier + sister table with expression --------------------
+
+carrier_sister_df <- meta_ped |>
+  dplyr::filter(bc1_family %in% teo_families) |>
+  dplyr::mutate(
+    expression = as.numeric(expr_mat[FOCUS_GENE, sample_id]),
+    role       = ifelse(has_teo == 1, "Teo", "Sis")
+  ) |>
+  dplyr::select(
+    bc1_family, role, sample_id, genotype, taxa, expression
+  ) |>
+  dplyr::arrange(bc1_family, dplyr::desc(role), dplyr::desc(expression))
+
+write.csv(
+  carrier_sister_df,
+  file.path(out_dir, paste0(FOCUS_GENE, "_carriers_and_sisters.csv")),
+  row.names = FALSE
+)
+
+cat("\n=== Carriers and sisters with expression (sorted by family) ===\n")
+print(as.data.frame(carrier_sister_df), row.names = FALSE)
 
 # ---- build paired expression table ------------------------------------------
 
@@ -416,7 +438,7 @@ ggsave(
 
 # helper function to build the faceted jitter plot
 build_facet_jitter <- function(df_fam, fam_levels, show_legend = TRUE,
-                               title_suffix = "") {
+                               title_suffix = "", nrow = NULL) {
 
   df_fam <- df_fam |>
     dplyr::mutate(
@@ -462,7 +484,7 @@ build_facet_jitter <- function(df_fam, fam_levels, show_legend = TRUE,
       color = "black",
       inherit.aes = FALSE
     ) +
-    facet_wrap(~ bc1_family) +
+    facet_wrap(~ bc1_family, nrow = nrow) +
     scale_fill_manual(values = taxa_colors, name = "teosinte taxa") +
     scale_x_discrete(labels = c("B73" = "B73", "Teosinte" = "Teo")) +
     labs(
@@ -517,14 +539,15 @@ p_top5 <- build_facet_jitter(
   paired_df_top5,
   top5_families,
   show_legend  = FALSE,
-  title_suffix = " (top 5)"
+  title_suffix = " (top 5)",
+  nrow         = 1
 )
 print(p_top5)
 
 ggsave(
   file.path(out_dir, paste0(FOCUS_GENE, "_faceted_top5.png")),
   p_top5,
-  width  = 12,
+  width  = 16,
   height = 4
 )
 
@@ -718,3 +741,176 @@ pair_plot_results_mixed_only <- purrr::map(
 )
 
 names(pair_plot_results_mixed_only) <- partner_genes_mixed
+
+# ##############################################################################
+# ##                                                                          ##
+# ##   NDH COMPLEX VOLCANO PLOT                                               ##
+# ##   Effect of teosinte allele on expression of all NDH complex genes       ##
+# ##                                                                          ##
+# ##############################################################################
+
+library(ggrepel)
+
+ndh_file <- file.path(data_dir, "NDH_complex_genes_B73v5_COMPLETE.tsv")
+ndh_genes <- read.delim(ndh_file, stringsAsFactors = FALSE)
+
+# keep only nuclear-encoded genes with valid IDs present in expression matrix
+ndh_nuclear <- ndh_genes |>
+  dplyr::filter(Genome == "nuclear", Gene_ID != "-", Gene_ID %in% rownames(expr_mat))
+
+cat(paste("NDH nuclear genes in expression data:", nrow(ndh_nuclear), "\n"))
+
+# ---- compute per-gene effect of teosinte allele -----------------------------
+
+# For each gene, determine introgression status per sample, then compare
+# expression between teo-carriers and B73-carriers at that locus.
+
+compute_teo_effect <- function(gene_id, gene_coords_df, segs_gr,
+                               key_to_samples, sample_df, expr_mat) {
+
+  if (!gene_id %in% gene_coords_df$gene_id) return(NULL)
+
+  g <- gene_coords_df |> dplyr::filter(gene_id == !!gene_id)
+  g_gr <- GRanges(seqnames = g$chr, ranges = IRanges(g$start, g$end))
+
+  hits <- findOverlaps(segs_gr, g_gr)
+  overlapping_keys <- unique(segs_gr$key[queryHits(hits)])
+
+  geno_vec <- rep(0L, nrow(sample_df))
+  names(geno_vec) <- sample_df$sample_id
+  for (k in overlapping_keys) {
+    s_ids <- key_to_samples[[k]]
+    if (!is.null(s_ids)) geno_vec[as.character(s_ids)] <- 1L
+  }
+
+  expr_vals <- expr_mat[gene_id, names(geno_vec)]
+  teo_expr <- expr_vals[geno_vec == 1]
+  b73_expr <- expr_vals[geno_vec == 0]
+
+  n_teo <- length(teo_expr)
+  n_b73 <- length(b73_expr)
+
+  if (n_teo < 2 || n_b73 < 2) return(NULL)
+
+  tt <- t.test(teo_expr, b73_expr)
+
+  data.frame(
+    gene_id      = gene_id,
+    mean_teo     = mean(teo_expr),
+    mean_b73     = mean(b73_expr),
+    log2FC       = mean(teo_expr) - mean(b73_expr),  # already log2 CPM
+    pvalue       = tt$p.value,
+    n_teo        = n_teo,
+    n_b73        = n_b73,
+    stringsAsFactors = FALSE
+  )
+}
+
+ndh_effects <- purrr::map_dfr(
+  ndh_nuclear$Gene_ID,
+  ~compute_teo_effect(.x, gene_coords, segs_gr, key_to_samples, sample_df, expr_mat)
+)
+
+# merge subunit annotations back
+ndh_effects <- ndh_effects |>
+  dplyr::left_join(
+    ndh_nuclear |> dplyr::select(Gene_ID, Subcomplex, Subunit),
+    by = c("gene_id" = "Gene_ID")
+  ) |>
+  dplyr::mutate(
+    neg_log10p   = -log10(pvalue),
+    padj         = p.adjust(pvalue, method = "BH"),
+    neg_log10padj = -log10(padj),
+    is_focus     = gene_id == FOCUS_GENE,
+    sig          = padj < 0.05,
+    label        = Subunit
+  )
+
+cat("\n=== NDH complex teosinte allele effects ===\n")
+print(
+  as.data.frame(
+    ndh_effects |>
+      dplyr::select(Subcomplex, Subunit, gene_id, log2FC, pvalue, padj, n_teo, n_b73) |>
+      dplyr::arrange(pvalue)
+  ),
+  row.names = FALSE
+)
+
+write.csv(
+  ndh_effects,
+  file.path(out_dir, "NDH_complex_teo_effects.csv"),
+  row.names = FALSE
+)
+
+# ---- volcano plot ------------------------------------------------------------
+
+subcomplex_colors <- c(
+  "SubA"       = "#E64B35",
+  "SubB"       = "#4DBBD5",
+  "SubE"       = "#00A087",
+  "SubL"       = "#3C5488",
+  "SubM"       = "#F39B7F",
+  "PSI-linker" = "#8491B4"
+)
+
+p_volcano <- ggplot(ndh_effects, aes(x = log2FC, y = neg_log10padj)) +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "grey50", linewidth = 0.4) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey50", linewidth = 0.4) +
+  geom_point(
+    aes(fill = Subcomplex, size = is_focus),
+    shape = 21,
+    color = "grey30",
+    alpha = 0.8
+  ) +
+  scale_fill_manual(values = subcomplex_colors, name = "Subcomplex") +
+  scale_size_manual(values = c("FALSE" = 3, "TRUE" = 6), guide = "none") +
+  geom_text_repel(
+    aes(label = label),
+    size          = 3.5,
+    fontface      = "bold",
+    max.overlaps  = 30,
+    segment.color = "grey60",
+    segment.size  = 0.3,
+    box.padding   = 0.4,
+    point.padding = 0.3
+  ) +
+  labs(
+    x = "Effect of teosinte allele (log2 FC)",
+    y = expression(-log[10]~adjusted~italic(p)-value),
+    title = "NDH complex: teosinte introgression effect on expression",
+    subtitle = paste0(
+      sum(ndh_effects$sig), " / ", nrow(ndh_effects),
+      " genes significant (BH-adjusted p < 0.05)  |  ",
+      "Focus gene (PnsL1/PPL2) highlighted"
+    )
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(face = "bold"),
+    plot.subtitle = element_text(size = 11, color = "grey40"),
+    legend.position = "right"
+  )
+
+print(p_volcano)
+
+ggsave(
+  file.path(out_dir, "NDH_complex_volcano.png"),
+  p_volcano,
+  width = 9,
+  height = 7
+)
+
+cat("Saved: NDH_complex_volcano.png\n")
+
+# ---- jitter plots for significant NDH genes ----------------------------------
+
+ndh_sig_genes <- ndh_effects |>
+  dplyr::filter(sig) |>
+  dplyr::pull(gene_id)
+
+cat(paste("\nGenerating jitter plots for", length(ndh_sig_genes), "significant NDH genes...\n"))
+
+ndh_jitter_results <- purrr::map(ndh_sig_genes, plot_one_gene)
+names(ndh_jitter_results) <- ndh_sig_genes
+
+cat("Saved jitter plots for all significant NDH genes.\n")
