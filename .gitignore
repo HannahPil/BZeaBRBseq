@@ -2,6 +2,8 @@
 .Rhistory
 .RData
 .RDataTmp
+.RDataTmp*
 .Ruserdata
+Rplots.pdf
 output/
 data/
