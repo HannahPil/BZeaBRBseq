@@ -50,6 +50,27 @@ metadata <- read.csv(file.path(data_dir, "metadata.csv"), stringsAsFactors = FAL
 
 teogeno <- teogeno[!duplicated(names(teogeno))]
 
+# ---- recode taxa to lowercase subspecies names -------------------------------
+# The 5 mexicana subpopulations (Dura/Nabo/Mesa/Chal/Nobo) collapse to a
+# single "mexicana" group.
+taxa_recode_map <- c(
+  "Bals" = "parviglumis",
+  "Zdip" = "diploperennis",
+  "Hueh" = "huehuetenanguensis",
+  "Zlux" = "luxurians",
+  "Dura" = "mexicana",
+  "Nabo" = "mexicana",
+  "Mesa" = "mexicana",
+  "Chal" = "mexicana",
+  "Nobo" = "mexicana",
+  "B73"  = "B73"
+)
+recode_taxa <- function(x) {
+  mapped <- unname(taxa_recode_map[as.character(x)])
+  ifelse(is.na(mapped), as.character(x), mapped)
+}
+metadata$taxa <- recode_taxa(metadata$taxa)
+
 # ------------------------------ align samples ---------------------------------
 
 sample_df <- metadata |>
@@ -121,16 +142,12 @@ key_to_samples <- split(sample_df$sample_id, sample_df$genotype_teogeno_key)
 # ------------------------------ colors ----------------------------------------
 
 taxa_colors <- c(
-  "B73"  = "#03bec4",
-  "Bals" = "#f364e2",
-  "Zdip" = "#f8756d",
-  "Hueh" = "#b69d00",
-  "Zlux" = "#00b837",
-  "Dura" = "#609bfe",
-  "Nabo" = "#609bfe",
-  "Mesa" = "#609bfe",
-  "Chal" = "#609bfe",
-  "Nobo" = "#609bfe"
+  "B73"                = "#03bec4",
+  "parviglumis"        = "#f364e2",
+  "diploperennis"      = "#f8756d",
+  "huehuetenanguensis" = "#b69d00",
+  "luxurians"          = "#00b837",
+  "mexicana"           = "#609bfe"
 )
 
 # ==============================================================================

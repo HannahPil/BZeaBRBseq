@@ -18,6 +18,27 @@ meta_all <- read.csv(file.path(data_dir, "metadata.csv"), stringsAsFactors = FAL
 # keep only complete rows (plate 1–4)
 meta <- subset(meta_all, plate %in% c(1, 2, 3, 4))
 
+# ---- recode taxa to lowercase subspecies names -------------------------------
+# The 5 mexicana subpopulations (Dura/Nabo/Mesa/Chal/Nobo) collapse to a
+# single "mexicana" group.
+taxa_recode_map <- c(
+  "Bals" = "parviglumis",
+  "Zdip" = "diploperennis",
+  "Hueh" = "huehuetenanguensis",
+  "Zlux" = "luxurians",
+  "Dura" = "mexicana",
+  "Nabo" = "mexicana",
+  "Mesa" = "mexicana",
+  "Chal" = "mexicana",
+  "Nobo" = "mexicana",
+  "B73"  = "B73"
+)
+recode_taxa <- function(x) {
+  mapped <- unname(taxa_recode_map[as.character(x)])
+  ifelse(is.na(mapped), as.character(x), mapped)
+}
+meta$taxa <- recode_taxa(meta$taxa)
+
 # restrict metadata to samples present in counts
 meta <- meta[meta$sample_id %in% colnames(counts), ]
 
@@ -64,16 +85,14 @@ p1 <- ggplot(scores, aes(x = PC1, y = PC2)) +
   scale_color_manual(
     values = c(
       "check" = "black",
-      "Dura"  = "#1f77b4",
-      "Nobo"  = "#ff7f0e",
-      "Mesa"  = "#2ca02c",
-      "Chal"  = "#d62728",
-      "Bals"  = "#9467bd",
-      "Zdip"  = "brown4",
-      "Hueh"  = "yellow3",
-      "Zlux"  = "#17becf"
+      "mexicana"           = "#1f77b4",
+      "parviglumis"        = "#9467bd",
+      "diploperennis"      = "brown4",
+      "huehuetenanguensis" = "yellow3",
+      "luxurians"          = "#17becf"
     ),
-    breaks = c("check", "Dura", "Nobo", "Mesa", "Chal", "Bals", "Zdip", "Hueh", "Zlux")
+    breaks = c("check", "mexicana", "parviglumis", "diploperennis",
+               "huehuetenanguensis", "luxurians")
   ) +
   labs(color = "Taxa / Check",
        title = "PCA before batch correction (by taxa)")
@@ -115,16 +134,14 @@ p1_corr <- ggplot(scores_corr, aes(x = PC1, y = PC2)) +
   scale_color_manual(
     values = c(
       "check" = "black",
-      "Dura"  = "#1f77b4",
-      "Nobo"  = "#ff7f0e",
-      "Mesa"  = "#2ca02c",
-      "Chal"  = "#d62728",
-      "Bals"  = "#9467bd",
-      "Zdip"  = "brown4",
-      "Hueh"  = "yellow3",
-      "Zlux"  = "#17becf"
+      "mexicana"           = "#1f77b4",
+      "parviglumis"        = "#9467bd",
+      "diploperennis"      = "brown4",
+      "huehuetenanguensis" = "yellow3",
+      "luxurians"          = "#17becf"
     ),
-    breaks = c("check", "Dura", "Nobo", "Mesa", "Chal", "Bals", "Zdip", "Hueh", "Zlux")
+    breaks = c("check", "mexicana", "parviglumis", "diploperennis",
+               "huehuetenanguensis", "luxurians")
   ) +
   labs(color = "Taxa / Check",
        title = "PCA after batch correction (by taxa)")
@@ -186,16 +203,14 @@ p_FT <- ggplot(scores, aes(x = PC1, y = PC2)) +
   scale_color_manual(
     values = c(
       "check" = "black",
-      "Dura"  = "#1f77b4",
-      "Nobo"  = "#ff7f0e",
-      "Mesa"  = "#2ca02c",
-      "Chal"  = "#d62728",
-      "Bals"  = "#9467bd",
-      "Zdip"  = "brown4",
-      "Hueh"  = "yellow3",
-      "Zlux"  = "#17becf"
+      "mexicana"           = "#1f77b4",
+      "parviglumis"        = "#9467bd",
+      "diploperennis"      = "brown4",
+      "huehuetenanguensis" = "yellow3",
+      "luxurians"          = "#17becf"
     ),
-    breaks = c("check", "Dura", "Nobo", "Mesa", "Chal", "Bals", "Zdip", "Hueh", "Zlux")
+    breaks = c("check", "mexicana", "parviglumis", "diploperennis",
+               "huehuetenanguensis", "luxurians")
   ) +
   labs(color = "Taxa",
        title = "PCA using FT_genes only")

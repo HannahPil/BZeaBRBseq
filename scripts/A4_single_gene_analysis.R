@@ -18,7 +18,7 @@ library(GenomicRanges)
 # ##                                                                          ##
 # ##############################################################################
 
-FOCUS_GENE <- "Zm00001eb012750"
+FOCUS_GENE <- "Zm00001eb232420"
 
 # partner genes for co-expression scatter plots against FOCUS_GENE
 PARTNER_GENES <- c(
@@ -50,6 +50,28 @@ metadata <- read.csv(file.path(data_dir, "metadata.csv"), stringsAsFactors = FAL
 
 teogeno <- teogeno[!duplicated(names(teogeno))]
 
+# ---- recode taxa to lowercase subspecies names -------------------------------
+# The 5 mexicana subpopulations (Dura/Nabo/Mesa/Chal/Nobo) collapse to a
+# single "mexicana" group. Recoded here on metadata so all downstream
+# sample_df / meta_ped / plot_df objects inherit the new labels.
+taxa_recode_map <- c(
+  "Bals" = "parviglumis",
+  "Zdip" = "diploperennis",
+  "Hueh" = "huehuetenanguensis",
+  "Zlux" = "luxurians",
+  "Dura" = "mexicana",
+  "Nabo" = "mexicana",
+  "Mesa" = "mexicana",
+  "Chal" = "mexicana",
+  "Nobo" = "mexicana",
+  "B73"  = "B73"
+)
+recode_taxa <- function(x) {
+  mapped <- unname(taxa_recode_map[as.character(x)])
+  ifelse(is.na(mapped), as.character(x), mapped)
+}
+metadata$taxa <- recode_taxa(metadata$taxa)
+
 # ------------------------------ align samples ---------------------------------
 
 sample_df <- metadata |>
@@ -59,6 +81,7 @@ sample_df <- metadata |>
   ) |>
   dplyr::transmute(
     sample_id,
+    genotype,
     taxa = factor(taxa),
     plate = factor(plate),
     genotype_teogeno_key = dplyr::if_else(
@@ -67,7 +90,9 @@ sample_df <- metadata |>
       paste0(genotype, ".B")
     )
   ) |>
-  dplyr::filter(genotype_teogeno_key %in% names(teogeno)) |>
+  # keep BC2S3 samples that are in teogeno AND pure B73 controls (which have
+  # no teogeno entry — they'll be treated as no-introgression everywhere)
+  dplyr::filter(genotype_teogeno_key %in% names(teogeno) | genotype == "B73") |>
   dplyr::arrange(sample_id)
 
 counts <- counts[, as.character(sample_df$sample_id), drop = FALSE]
@@ -121,16 +146,12 @@ key_to_samples <- split(sample_df$sample_id, sample_df$genotype_teogeno_key)
 # ------------------------------ colors ----------------------------------------
 
 taxa_colors <- c(
-  "B73"  = "#03bec4",
-  "Bals" = "#f364e2",
-  "Zdip" = "#f8756d",
-  "Hueh" = "#b69d00",
-  "Zlux" = "#00b837",
-  "Dura" = "#609bfe",
-  "Nabo" = "#609bfe",
-  "Mesa" = "#609bfe",
-  "Chal" = "#609bfe",
-  "Nobo" = "#609bfe"
+  "B73"                = "#03bec4",
+  "parviglumis"        = "#f364e2",
+  "diploperennis"      = "#f8756d",
+  "huehuetenanguensis" = "#b69d00",
+  "luxurians"          = "#00b837",
+  "mexicana"           = "#609bfe"
 )
 
 # --------------------------- genes to plot ------------------------------------
@@ -186,8 +207,12 @@ plot_one_gene <- function(target_gene) {
         dplyr::select(sample_id, taxa),
       by = "sample_id"
     ) |>
+    # Color BOTH columns by taxa. On the Teo side this shows which donor
+    # taxa contributed the introgression; on the B73 side it shows which
+    # samples are truly pure B73 (taxa == "B73") vs BC2S3 samples that
+    # happen to lack the teosinte introgression at this specific locus.
     dplyr::mutate(
-      point_color = ifelse(Genotype == "Teosinte Introgression", as.character(taxa), "B73")
+      point_color = as.character(taxa)
     )
   
   group_stats <- plot_df |>
@@ -237,13 +262,15 @@ plot_one_gene <- function(target_gene) {
     labs(
       x = "genotype",
       y = "normalized expression (log2 cpm)",
-      title = paste("Effect of introgression on", target_gene),
-      subtitle = "Teo points colored by taxa; black = mean ± SD"
+      title = paste0("Effect of introgression on\n", target_gene)
     ) +
     theme_minimal(base_size = 18) +
     theme(
       axis.text.x = element_text(size = 14, face = "bold"),
-      plot.title = element_text(face = "bold")
+      plot.title = element_text(face = "bold", size = 15),
+      legend.title = element_text(size = 11),
+      legend.text  = element_text(size = 10),
+      legend.key.size = unit(0.4, "cm")
     )
   
   print(p_gene)
@@ -251,8 +278,8 @@ plot_one_gene <- function(target_gene) {
   ggsave(
     file.path(out_dir, paste0("eQTL_", target_gene, "_taxa.png")),
     p_gene,
-    width = 5,
-    height = 5
+    width = 7,
+    height = 7
   )
   
   return(plot_df)

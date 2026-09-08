@@ -25,7 +25,7 @@ BZeaBRBseq/
 | 03 | `03_trimming_and_QC.sh` | Adapter trimming and quality control |
 | 04 | `04_rRNA_filtering.sh` | Remove ribosomal RNA reads |
 | 05 | `05_STAR_alignment.sh` | Align reads to Zea mays genome with STAR |
-| 06 | `06_featureCounts.R` | Quantify gene-level read counts |
+| 06 | `06_featureCounts_Zm.R` | Quantify gene-level read counts |
 | 07 | `07_generate_summary_statistics.sh` | Alignment and mapping summaries |
 | 08 | `08_trimming_stats.sh` | Trimming statistics |
 
@@ -37,21 +37,23 @@ All R scripts assume the working directory is the project root and read input fi
 
 | Step | Script | Description |
 |------|--------|-------------|
-| 10 | `10_PCA.R` | PCA before and after plate batch correction (limma) |
-| 11 | `11_expressionAnalysis.R` | Expression heatmap of candidate genes across BZea lines |
-| 12 | `12_genomeWideAnalysis.R` | Genome-wide differential expression (edgeR, taxa vs B73) and gene-specific modeling |
-| 13a | `13a_cis_eQTL.R` | Cis-eQTL scan using MatrixEQTL (introgression genotypes as predictors) |
-| 13b | `13b_trans_eQTL.R` | Trans-eQTL scan by source chromosome, combined Manhattan plots, single-gene trans scans |
-| 13c | `13c_global_eQTL.R` | Genome-wide eQTL architecture contact map, trans hotspot analysis, locus zoom plots |
-| 14 | `14_single_gene_analysis.R` | Single-gene expression plots (B73 vs teosinte, colored by taxa) and co-expression analysis |
-| -- | `counts_to_TPM.R` | Convert raw counts to TPM using exon-merged gene lengths |
+| 10  | `10_PCA.R` | PCA before and after plate batch correction (limma) |
+| A1  | `A1_expressionAnalysis.R` | Expression heatmap of candidate genes across BZea lines |
+| A2  | `A2_genomeWideAnalysis.R` | Genome-wide differential expression (edgeR, taxa vs B73) and gene-specific modeling |
+| A3a | `A3a_cis_eQTL.R` | Cis-eQTL scan using MatrixEQTL (introgression genotypes as predictors) |
+| A3b | `A3b_trans_eQTL.R` | Trans-eQTL scan by source chromosome, combined Manhattan plots, single-gene trans scans |
+| A3c | `A3c_global_eQTL.R` | Genome-wide eQTL architecture contact map, trans hotspot analysis, locus zoom plots |
+| A4  | `A4_single_gene_analysis.R` | Single-gene expression plots (B73 vs teosinte, colored by taxa) and co-expression analysis |
+| A5  | `A5_WGCNA.R` | Weighted gene co-expression network analysis |
+| A6  | `A6_export_for_collaborators.R` | Export processed data tables for collaborators |
+| --  | `counts_to_TPM.R` | Convert raw counts to TPM using exon-merged gene lengths |
 
 ### Key design notes
 
 - **Plates 1-4 only**: All scripts filter to sequenced plates 1-4.
-- **Normalization**: The eQTL scripts (13a, 13b, 14) use raw library-size log2 CPM, while the PCA/DE scripts (10, 11, 12) use edgeR TMM-normalized log2 CPM. This is intentional (see comments in each script).
-- **Covariates**: eQTL scripts control for plate; genome-wide DE (script 12) controls for spatial position (Row + Range).
-- **Single-gene focus**: Script 14 has a `FOCUS_GENE` variable at the top for easy gene-by-gene analysis.
+- **Normalization**: The eQTL scripts (A3a, A3b, A4) use raw library-size log2 CPM, while the PCA/DE scripts (10, A1, A2) use edgeR TMM-normalized log2 CPM. This is intentional (see comments in each script).
+- **Covariates**: eQTL scripts control for plate; genome-wide DE (script A2) controls for spatial position (Row + Range).
+- **Single-gene focus**: Script A4 has a `FOCUS_GENE` variable at the top for easy gene-by-gene analysis.
 
 ## Required input files (in `data/`)
 
