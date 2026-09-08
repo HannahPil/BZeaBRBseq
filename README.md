@@ -22,6 +22,7 @@ BZeaBRBseq/
 | Step | Script | Description |
 |------|--------|-------------|
 | 00 | `00_clean_metadata.sh` | Clean and format sample metadata |
+| 02 | `02_demultiplex.sh` | BRB-seq demultiplexing of pool fastqs into per-sample fastqs |
 | 03 | `03_trimming_and_QC.sh` | Adapter trimming and quality control |
 | 04 | `04_rRNA_filtering.sh` | Remove ribosomal RNA reads |
 | 05 | `05_STAR_alignment.sh` | Align reads to Zea mays genome with STAR |
