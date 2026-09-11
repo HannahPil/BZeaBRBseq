@@ -25,9 +25,9 @@
 
 set -e
 
-# activate conda env (Java + BRBseqTools need to be on PATH)
-# module load conda
-# conda activate /usr/local/usrapps/maize/hdpil/hdpil
+# Java runtime for BRBseqTools jar.
+# NCSU has java as a system module — no conda env needed for this step.
+module load java/17
 
 # ---- paths ------------------------------------------------------------------
 baseDir="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah"
