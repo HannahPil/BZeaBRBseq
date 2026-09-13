@@ -5,5 +5,7 @@
 .RDataTmp*
 .Ruserdata
 Rplots.pdf
+batch/logs/*
+!batch/logs/.gitkeep
 output/
 data/

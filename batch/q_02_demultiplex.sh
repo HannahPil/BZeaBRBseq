@@ -2,8 +2,8 @@
 #BSUB -J 02_demux
 #BSUB -q sara
 #BSUB -n 4
-#BSUB -o 02_demux.%J.out
-#BSUB -e 02_demux.%J.err
+#BSUB -o logs/02_demux.%J.out
+#BSUB -e logs/02_demux.%J.err
 #BSUB -R "span[hosts=1]"
 #BSUB -W 24:00
 
