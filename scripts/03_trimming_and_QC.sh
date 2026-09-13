@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# activate conda env (Trimmomatic + FastQC + pigz need to be on PATH)
+module load conda
+conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
 # Set directories - modify paths to match your current structure
 outDIR="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/03_trimmed/"

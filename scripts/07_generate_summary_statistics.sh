@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# activate conda environment
-#module load conda
-#conda activate /usr/local/usrapps/maize/hdpil/hdpil
+# activate conda environment (samtools needs to be on PATH)
+module load conda
+conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
 # Check if a species name is provided
 if [ -z "$1" ]; then

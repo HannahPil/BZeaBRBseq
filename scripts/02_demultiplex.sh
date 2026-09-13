@@ -20,8 +20,8 @@
 set -e
 
 # activate conda env (Java + BRBseqTools need to be on PATH)
-# module load conda
-# conda activate /usr/local/usrapps/maize/hdpil/hdpil
+module load conda
+conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
 # ---- paths ------------------------------------------------------------------
 baseDir="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah"

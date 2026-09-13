@@ -7,4 +7,8 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -W 12:00
 
+# activate conda env so Rscript resolves to env's R (with Rsubread installed)
+module load conda
+conda activate /usr/local/usrapps/maize/hdpil/hdpil
+
 Rscript ../scripts/06_featureCounts_Zm.R
