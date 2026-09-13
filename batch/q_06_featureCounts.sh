@@ -9,6 +9,7 @@
 
 # activate conda env so Rscript resolves to env's R (with Rsubread installed)
 module load conda
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
 Rscript ../scripts/06_featureCounts_Zm.R

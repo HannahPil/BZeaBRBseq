@@ -2,6 +2,7 @@
 
 # activate conda env (Trimmomatic + FastQC + pigz need to be on PATH)
 module load conda
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
 # Set directories - modify paths to match your current structure

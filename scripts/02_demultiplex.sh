@@ -21,6 +21,7 @@ set -e
 
 # activate conda env (Java + BRBseqTools need to be on PATH)
 module load conda
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
 # ---- paths ------------------------------------------------------------------
