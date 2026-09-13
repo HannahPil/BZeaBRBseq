@@ -7,4 +7,9 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -W 1:00
 
-../scripts/FBX_analysis0_strand_check.sh
+# activate conda env so Rscript resolves to env's R (with Rsubread)
+module load conda
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate /usr/local/usrapps/maize/hdpil/hdpil
+
+Rscript ../scripts/FBX_analysis0_strand_check.R
