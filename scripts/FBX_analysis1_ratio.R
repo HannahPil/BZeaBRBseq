@@ -34,11 +34,16 @@ FOCUS_GENE <- "Zm00001eb012750"    # actually PPL2 — wait, this is fbxl1
 FOCUS_GENE <- "Zm00001eb375600"    # fbxl1
 
 data_dir <- "data"
-in_dir   <- file.path(data_dir, "FBX_analysis1")   # where HPC output was copied
+# HPC window CSVs may live in data/FBX_analysis1/ or straight in data/
+in_dir <- if (file.exists(file.path(data_dir, "FBX_analysis1", "window_counts.csv"))) {
+  file.path(data_dir, "FBX_analysis1")
+} else {
+  data_dir
+}
 out_dir  <- file.path("output", "FBX_analyses", "analysis1_ratio")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-stopifnot(dir.exists(in_dir))
+cat("Reading window CSVs from:", in_dir, "\n")
 
 # ---- 1. HPC window counts + library sizes --------------------------------
 win_norm <- read.csv(file.path(in_dir, "window_counts_normalized.csv"),
