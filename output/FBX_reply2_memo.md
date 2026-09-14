@@ -3,18 +3,14 @@ title: |
   Zm00001eb375600 (*fbxl1*) — inversion retracted; independent soft-clip
   audit in the CDS window confirms your geometry model
 format:
-  pdf:
-    documentclass: article
-    geometry:
-      - margin=1in
+  html:
+    theme: default
     fontsize: 11pt
-    colorlinks: true
+    embed-resources: true
+    toc: false
     number-sections: false
-    fig-pos: 'H'
-    include-in-header:
-      text: |
-        \usepackage{float}
-        \usepackage{longtable}
+    fig-align: center
+    linkcolor: "#0d6efd"
 ---
 
 **To:** Rubén Rellán-Álvarez  **From:** Hannah Pil  **Re:** Results from your reply memo of 2026-09-14
