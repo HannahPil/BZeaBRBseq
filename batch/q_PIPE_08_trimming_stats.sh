@@ -7,4 +7,4 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -W 12:00
 
-../scripts/08_trimming_stats.sh
+../scripts/PIPE_08_trimming_stats.sh

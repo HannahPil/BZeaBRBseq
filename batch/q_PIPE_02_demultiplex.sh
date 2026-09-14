@@ -7,4 +7,4 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -W 24:00
 
-../scripts/02_demultiplex.sh
+../scripts/PIPE_02_demultiplex.sh
