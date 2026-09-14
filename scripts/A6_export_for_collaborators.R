@@ -29,7 +29,7 @@ print("1. Loading data...")
 
 data_dir <- "data"
 teogeno  <- readRDS(file.path(data_dir, "results_list_new_name.rds"))
-counts   <- read.delim(file.path(data_dir, "reference", "Zea_mays_counts.txt"), check.names = FALSE, row.names = 1)
+counts   <- read.delim(file.path(data_dir, "processed", "Zea_mays_counts.txt"), check.names = FALSE, row.names = 1)
 metadata <- read.csv(file.path(data_dir, "inv4m_metadata.csv"), stringsAsFactors = FALSE, check.names = FALSE)
 
 teogeno <- teogeno[!duplicated(names(teogeno))]
@@ -67,7 +67,7 @@ print(table(dropped_df$taxa))
 
 print("3. Processing GTF coordinates...")
 
-gtf <- import(file.path(data_dir, "reference", "Zea_mays.gtf"))
+gtf <- import(file.path(data_dir, "external", "Zea_mays.gtf"))
 gtf_df <- as.data.frame(gtf)
 
 gene_coords <- gtf_df |>

@@ -45,7 +45,7 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 data_dir <- "data"
 
 teogeno  <- readRDS(file.path(data_dir, "results_list_new_name.rds"))
-counts   <- read.delim(file.path(data_dir, "reference", "Zea_mays_counts.txt"), check.names = FALSE, row.names = 1)
+counts   <- read.delim(file.path(data_dir, "processed", "Zea_mays_counts.txt"), check.names = FALSE, row.names = 1)
 metadata <- read.csv(file.path(data_dir, "metadata.csv"), stringsAsFactors = FALSE)
 
 teogeno <- teogeno[!duplicated(names(teogeno))]
@@ -108,7 +108,7 @@ expr_mat <- log2((t(t(expr_mat) / lib_size)) * 1e6 + 1)
 
 # ---------------------------- gene coordinates --------------------------------
 
-gtf <- import(file.path(data_dir, "reference", "Zea_mays.gtf"))
+gtf <- import(file.path(data_dir, "external", "Zea_mays.gtf"))
 gtf_df <- as.data.frame(gtf)
 
 gene_coords <- gtf_df |>

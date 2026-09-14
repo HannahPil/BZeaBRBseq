@@ -45,13 +45,17 @@ batch/logs/*
 
 # ---------- data/ ----------
 # Small tables + metadata under data/ ARE tracked (git-first workflow — no
-# more WinSCP for analysis outputs). Only two things are excluded:
-#   1. data/reference/  — reference genome, big pipeline outputs, derivable
-#      files. See README for where each file comes from.
-#   2. Sequence/alignment/variant files anywhere (handled by *.fasta, *.gtf,
-#      *.bam, etc. rules above).
-data/reference/*
-!data/reference/.gitkeep
+# more WinSCP for analysis outputs). Each side analysis prefixes its data
+# files with a short tag (FBX_, EQ_, etc.) so the flat layout stays legible.
+# Two subfolders stay entirely out of git:
+#   data/external/   reference material from outside (MaizeGDB, collaborators)
+#   data/processed/  big pipeline outputs (counts matrix, edgeR tables)
+# Sequence/alignment/variant files are also blocked by *.fasta, *.gtf, *.bam
+# rules above.
+data/external/*
+!data/external/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
 
 # ---------- output/ ----------
 # Ignore everything by default. To track a specific result, use:

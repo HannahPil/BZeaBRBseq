@@ -4,22 +4,29 @@
 # FBX Analysis 1 — count reads in the 4 fbxl1 test windows (memo §6.3)
 #
 # Uses Rsubread::featureCounts on all sample BAMs with strandSpecific = 1
-# (confirmed by Analysis 0). The 4 windows come from data/fbxl1_test_windows.bed
-# and BED coordinates are converted to SAF (1-based) here.
+# (confirmed by Analysis 0). The 4 windows come from
+# data/FBX_fbxl1_test_windows.bed and BED coordinates are converted to SAF
+# (1-based) here.
 #
-# Output (writes a CSV to hannah/FBX_analyses/analysis1_window_counts/):
-#   window_counts.csv     4 windows x N samples raw counts
-#   library_sizes.csv     total counts per sample from the main Zea_mays counts
-#   window_counts_normalized.csv  windows x samples, counts / lib_size * 1e6
+# Reads the BED from the cloned repo (hannah/BZeaBRBseq/data/) and writes
+# outputs BACK INTO the repo (same directory) with an FBX_ prefix. That
+# eliminates the WinSCP step: after the job finishes, `git add data/FBX_*.csv
+# && git commit && git push` from the HPC ships the outputs to local via git.
+#
+# Output (in hannah/BZeaBRBseq/data/):
+#   FBX_window_counts.csv             4 windows x N samples raw counts
+#   FBX_library_sizes.csv             total counts per sample (main matrix)
+#   FBX_window_counts_normalized.csv  windows x samples, counts / lib_size * 1e6
 # ==============================================================================
 
 suppressPackageStartupMessages(library(Rsubread))
 
 baseDir  <- "/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah"
+repoDir  <- file.path(baseDir, "BZeaBRBseq")
 alignDir <- file.path(baseDir, "alignments")
-bedFile  <- file.path(baseDir, "data", "fbxl1_test_windows.bed")
+bedFile  <- file.path(repoDir, "data", "FBX_fbxl1_test_windows.bed")
 mainCts  <- file.path(baseDir, "Zea_mays", "Zea_mays_counts.txt")
-outDir   <- file.path(baseDir, "FBX_analyses", "analysis1_window_counts")
+outDir   <- file.path(repoDir, "data")
 dir.create(outDir, recursive = TRUE, showWarnings = FALSE)
 
 stopifnot(file.exists(bedFile), file.exists(mainCts), dir.exists(alignDir))
@@ -87,17 +94,17 @@ win_norm <- sweep(win_counts, 2, lib_size, "/") * 1e6
 
 # ---- save -----------------------------------------------------------------
 write.csv(win_counts,
-          file.path(outDir, "window_counts.csv"),
+          file.path(outDir, "FBX_window_counts.csv"),
           row.names = TRUE)
 write.csv(data.frame(sample_id = names(lib_size), lib_size = lib_size),
-          file.path(outDir, "library_sizes.csv"),
+          file.path(outDir, "FBX_library_sizes.csv"),
           row.names = FALSE)
 write.csv(win_norm,
-          file.path(outDir, "window_counts_normalized.csv"),
+          file.path(outDir, "FBX_window_counts_normalized.csv"),
           row.names = TRUE)
 
 cat("\nSaved:\n")
-cat("  ", file.path(outDir, "window_counts.csv"), "\n", sep = "")
-cat("  ", file.path(outDir, "library_sizes.csv"), "\n", sep = "")
-cat("  ", file.path(outDir, "window_counts_normalized.csv"), "\n", sep = "")
+cat("  ", file.path(outDir, "FBX_window_counts.csv"), "\n", sep = "")
+cat("  ", file.path(outDir, "FBX_library_sizes.csv"), "\n", sep = "")
+cat("  ", file.path(outDir, "FBX_window_counts_normalized.csv"), "\n", sep = "")
 cat("\nCopy these back to local data/ for the ratio analysis.\n")

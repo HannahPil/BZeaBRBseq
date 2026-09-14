@@ -3,8 +3,8 @@ library(dplyr)
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 data_dir    <- "data"
-gtf_file    <- file.path(data_dir, "reference", "Zea_mays.gtf")
-counts_file <- file.path(data_dir, "reference", "Zea_mays_counts.txt")
+gtf_file    <- file.path(data_dir, "external", "Zea_mays.gtf")
+counts_file <- file.path(data_dir, "processed", "Zea_mays_counts.txt")
 output_file <- file.path("output", "Zea_mays_TPM.txt")
 
 # ── 1. Load counts ─────────────────────────────────────────────────────────────

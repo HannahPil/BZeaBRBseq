@@ -3,10 +3,9 @@
 # ==============================================================================
 # FBX Analysis 1b (LOCAL) — R_div / R_cons for fbxl1 (Rubén memo §6.3)
 #
-# Reads the window count files produced by scripts/FBX_analysis1_count_windows.R
-# on HPC and copied back to local data/FBX_analysis1/. Classifies each sample
-# by fbxl1 (Zm00001eb375600) introgression status using the same logic as A4.
-# Computes:
+# Reads window counts produced by scripts/FBX_analysis1_count_windows.R on HPC
+# (now written directly into data/FBX_*). Classifies each sample by fbxl1
+# (Zm00001eb375600) introgression status using the same logic as A4. Computes:
 #   R_cons = mean(Teo) / mean(B73) in sense_terminalCDS_conserved  (bias-free)
 #   R_div  = mean(Teo) / mean(B73) in sense_3UTR_divergent          (bias-exposed)
 #   R_div / R_cons  = mapping-bias diagnostic (H1)
@@ -19,9 +18,9 @@
 #   effect persists after bias fix   -> H2 or H3 candidate; re-estimate from CDS
 #
 # Outputs:
-#   output/FBX_analyses/analysis1_ratio/window_ratios_summary.csv
-#   output/FBX_analyses/analysis1_ratio/per_sample_window_cpm.png
-#   output/FBX_analyses/analysis1_ratio/ratio_by_window.png
+#   output/FBX_analysis1_ratio/window_ratios_summary.csv
+#   output/FBX_analysis1_ratio/per_sample_window_cpm.png
+#   output/FBX_analysis1_ratio/ratio_by_window.png
 # ==============================================================================
 
 suppressPackageStartupMessages({
@@ -34,23 +33,15 @@ FOCUS_GENE <- "Zm00001eb012750"    # actually PPL2 — wait, this is fbxl1
 FOCUS_GENE <- "Zm00001eb375600"    # fbxl1
 
 data_dir <- "data"
-# HPC window CSVs may live in data/FBX_analysis1/ or straight in data/
-in_dir <- if (file.exists(file.path(data_dir, "FBX_analysis1", "window_counts.csv"))) {
-  file.path(data_dir, "FBX_analysis1")
-} else {
-  data_dir
-}
-out_dir  <- file.path("output", "FBX_analyses", "analysis1_ratio")
+out_dir  <- file.path("output", "FBX_analysis1_ratio")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-cat("Reading window CSVs from:", in_dir, "\n")
-
 # ---- 1. HPC window counts + library sizes --------------------------------
-win_norm <- read.csv(file.path(in_dir, "window_counts_normalized.csv"),
+win_norm <- read.csv(file.path(data_dir, "FBX_window_counts_normalized.csv"),
                      check.names = FALSE, row.names = 1)
-win_raw  <- read.csv(file.path(in_dir, "window_counts.csv"),
+win_raw  <- read.csv(file.path(data_dir, "FBX_window_counts.csv"),
                      check.names = FALSE, row.names = 1)
-lib_size <- read.csv(file.path(in_dir, "library_sizes.csv"),
+lib_size <- read.csv(file.path(data_dir, "FBX_library_sizes.csv"),
                      stringsAsFactors = FALSE)
 
 cat("Windows counted:\n")
@@ -75,7 +66,7 @@ sample_df <- metadata |>
                   genotype == "B73") |>
   dplyr::arrange(sample_id)
 
-gtf <- import(file.path(data_dir, "reference", "Zea_mays.gtf"))
+gtf <- import(file.path(data_dir, "external", "Zea_mays.gtf"))
 gene_coords <- as.data.frame(gtf) |>
   dplyr::filter(!is.na(gene_id)) |>
   dplyr::group_by(gene_id) |>

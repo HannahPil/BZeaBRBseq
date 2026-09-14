@@ -12,7 +12,7 @@ setwd("C:/Users/Hannah Pil/Documents/gemmalab/BZea/BZea RNA-seq/BZeaBRBseq")
 # ============================
 data_dir <- "data"
 
-counts <- read.table(file.path(data_dir, "reference", "Zea_mays_counts.txt"), header = TRUE, row.names = 1, sep = "\t", check.names = FALSE)
+counts <- read.table(file.path(data_dir, "processed", "Zea_mays_counts.txt"), header = TRUE, row.names = 1, sep = "\t", check.names = FALSE)
 meta_all <- read.csv(file.path(data_dir, "metadata.csv"), stringsAsFactors = FALSE)
 
 # keep only complete rows (plate 1–4)

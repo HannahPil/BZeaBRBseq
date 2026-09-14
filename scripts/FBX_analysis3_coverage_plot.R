@@ -4,19 +4,20 @@
 # FBX Analysis 3 (LOCAL) — per-base coverage profile of fbxl1 terminal exon
 # Rubén reply memo §5 (decisive test) and §6.1 (taxon-stratified CDS ratio).
 #
-# INPUTS (copy from HPC to local data/FBX_analysis3/):
-#   data/FBX_analysis3/depth_matrix.tsv         (from analysis3_coverage/)
-#   data/FBX_analysis1/library_sizes.csv        (already local from analysis 1)
+# INPUTS (produced on HPC by FBX_analysis3_coverage_hpc.sh and
+# FBX_analysis1_count_windows.R; both scripts now write directly into data/):
+#   data/FBX_depth_matrix.tsv
+#   data/FBX_library_sizes.csv
 #
 # TWO OUTPUTS:
-#   output/FBX_analyses/analysis3_coverage/coverage_profile.png
+#   output/FBX_analysis3_coverage/coverage_profile.png
 #       Per-base mean library-normalised depth (carriers vs B73 background)
 #       across chr9:17933600-17934260. Distinguishes:
 #         (i)  lower teo expression        -> same shape, scaled down
 #         (ii) shorter teo 3'UTR (geometry)-> shape shifted upstream
 #         (iii) mapping loss in divergent  -> drop only in the 3'UTR window
 #
-#   output/FBX_analyses/analysis3_coverage/cds_ratio_by_taxon.{png,csv}
+#   output/FBX_analysis3_coverage/cds_ratio_by_taxon.{png,csv}
 #       Rubén §6.1 falsification test for the geometry model. If the 3.08x
 #       CDS-window ratio tracks donor 3'UTR length across carrier taxa,
 #       geometry explains it. If it is uniform, real expression difference.
@@ -35,30 +36,17 @@ UTR_START    <- 17933903L; UTR_END   <- 17934180L   # 278 bp
 REGION_START <- 17933600L; REGION_END <- 17934260L  # samtools depth region
 
 data_dir <- "data"
-depth_dir <- if (file.exists(file.path(data_dir, "FBX_analysis3", "depth_matrix.tsv"))) {
-  file.path(data_dir, "FBX_analysis3")
-} else {
-  data_dir
-}
-lib_dir <- if (file.exists(file.path(data_dir, "FBX_analysis1", "library_sizes.csv"))) {
-  file.path(data_dir, "FBX_analysis1")
-} else {
-  data_dir
-}
-out_dir <- file.path("output", "FBX_analyses", "analysis3_coverage")
+out_dir  <- file.path("output", "FBX_analysis3_coverage")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-cat("Depth matrix from:", depth_dir, "\n")
-cat("Library sizes from:", lib_dir, "\n")
-
 # ---- 1. Depth matrix + library sizes -------------------------------------
-depth <- read.table(file.path(depth_dir, "depth_matrix.tsv"),
+depth <- read.table(file.path(data_dir, "FBX_depth_matrix.tsv"),
                     header = TRUE, sep = "\t", check.names = FALSE)
 stopifnot(all(c("chr", "pos") %in% colnames(depth)))
 cat("Depth matrix: ", nrow(depth), " positions x ", ncol(depth) - 2,
     " samples\n", sep = "")
 
-lib_size <- read.csv(file.path(lib_dir, "library_sizes.csv"),
+lib_size <- read.csv(file.path(data_dir, "FBX_library_sizes.csv"),
                      stringsAsFactors = FALSE)
 lib_vec <- setNames(lib_size$lib_size, lib_size$sample_id)
 
@@ -79,7 +67,7 @@ sample_df <- metadata |>
                   genotype == "B73") |>
   dplyr::arrange(sample_id)
 
-gtf <- import(file.path(data_dir, "reference", "Zea_mays.gtf"))
+gtf <- import(file.path(data_dir, "external", "Zea_mays.gtf"))
 gene_coords <- as.data.frame(gtf) |>
   dplyr::filter(!is.na(gene_id)) |>
   dplyr::group_by(gene_id) |>

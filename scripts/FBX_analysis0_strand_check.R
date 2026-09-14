@@ -15,9 +15,10 @@
 suppressPackageStartupMessages(library(Rsubread))
 
 baseDir  <- "/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah"
+repoDir  <- file.path(baseDir, "BZeaBRBseq")
 alignDir <- file.path(baseDir, "alignments")
 gtf      <- file.path(baseDir, "Zea_mays", "Zea_mays.gtf")
-outDir   <- file.path(baseDir, "FBX_analyses", "analysis0_strand_check")
+outDir   <- file.path(repoDir, "output", "FBX_analysis0_strand_check")
 dir.create(outDir, recursive = TRUE, showWarnings = FALSE)
 
 # --- pick a handful of BAMs (5 is plenty; assignment fractions stabilise fast)

@@ -15,15 +15,20 @@
 # samtools depth called ONCE with all BAMs -> single tab-sep matrix
 # (chr, pos, depth_sample1, depth_sample2, ...). No per-sample intermediates.
 #
-# Output (written to hannah/FBX_analyses/analysis3_coverage/):
-#   depth_matrix.tsv    (660 rows) x (2 + N samples) columns
+# Writes directly INTO the cloned repo (hannah/BZeaBRBseq/data/) so that
+# `git add data/FBX_depth_matrix.tsv && git commit && git push` from HPC
+# ships the output to local via git (no WinSCP).
+#
+# Output:
+#   $repoDir/data/FBX_depth_matrix.tsv    (660 rows) x (2 + N samples) columns
 # ==============================================================================
 
 set -euo pipefail
 
 baseDir="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah"
+repoDir="$baseDir/BZeaBRBseq"
 alignDir="$baseDir/alignments"
-outDir="$baseDir/FBX_analyses/analysis3_coverage"
+outDir="$repoDir/data"
 mkdir -p "$outDir"
 
 REGION="chr9:17933600-17934260"
@@ -57,7 +62,7 @@ else
   echo "All BAMs already indexed."
 fi
 
-out="$outDir/depth_matrix.tsv"
+out="$outDir/FBX_depth_matrix.tsv"
 {
   # header row: chr, pos, then one column per sample
   printf "chr\tpos"
