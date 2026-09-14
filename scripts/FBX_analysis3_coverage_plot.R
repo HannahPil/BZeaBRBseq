@@ -79,7 +79,7 @@ sample_df <- metadata |>
                   genotype == "B73") |>
   dplyr::arrange(sample_id)
 
-gtf <- import(file.path(data_dir, "Zea_mays.gtf"))
+gtf <- import(file.path(data_dir, "reference", "Zea_mays.gtf"))
 gene_coords <- as.data.frame(gtf) |>
   dplyr::filter(!is.na(gene_id)) |>
   dplyr::group_by(gene_id) |>

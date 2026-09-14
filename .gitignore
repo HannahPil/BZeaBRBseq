@@ -1,11 +1,61 @@
-.Rproj.user
+# ==============================================================================
+# .gitignore for BZeaBRBseq
+# Repo tracks scripts, batch wrappers, and small analysis inputs.
+# Large sequence data, reference genomes, and analysis outputs stay local
+# (or on HPC) and are not tracked.
+# ==============================================================================
+
+# ---------- R / RStudio scratch ----------
+.Rproj.user/
 .Rhistory
 .RData
-.RDataTmp
 .RDataTmp*
 .Ruserdata
 Rplots.pdf
+
+# ---------- OS junk ----------
+.DS_Store
+Thumbs.db
+
+# ---------- LSF job logs ----------
 batch/logs/*
 !batch/logs/.gitkeep
-output/
-data/
+
+# ---------- Sequence, alignment, and variant files (never tracked, anywhere) ----------
+*.bam
+*.bai
+*.sam
+*.cram
+*.fastq
+*.fq
+*.fastq.gz
+*.fq.gz
+*.fasta
+*.fa
+*.fasta.gz
+*.fa.gz
+*.gff
+*.gff3
+*.gtf
+*.gtf.gz
+*.vcf
+*.vcf.gz
+*.vcf.gz.tbi
+*.bcf
+
+# ---------- data/ ----------
+# Small tables + metadata under data/ ARE tracked (git-first workflow — no
+# more WinSCP for analysis outputs). Only two things are excluded:
+#   1. data/reference/  — reference genome, big pipeline outputs, derivable
+#      files. See README for where each file comes from.
+#   2. Sequence/alignment/variant files anywhere (handled by *.fasta, *.gtf,
+#      *.bam, etc. rules above).
+data/reference/*
+!data/reference/.gitkeep
+
+# ---------- output/ ----------
+# Ignore everything by default. To track a specific result, use:
+#   git add -f output/path/to/file
+# or add an explicit `!output/some/path` exception below.
+output/*
+!output/.gitkeep

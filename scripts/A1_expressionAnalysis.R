@@ -12,7 +12,7 @@ setwd("C:/Users/Hannah Pil/Documents/gemmalab/BZea/BZea RNA-seq/BZeaBRBseq")
 # ============================
 data_dir <- "data"
 
-counts <- read.table(file.path(data_dir, "Zea_mays_counts.txt"),
+counts <- read.table(file.path(data_dir, "reference", "Zea_mays_counts.txt"),
                      header = TRUE,
                      row.names = 1,
                      sep = "\t",

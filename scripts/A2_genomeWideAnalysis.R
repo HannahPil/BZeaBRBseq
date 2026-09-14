@@ -8,7 +8,7 @@ library(purrr)
 
 # files
 data_dir    <- "data"
-counts_file <- file.path(data_dir, "Zea_mays_counts.txt")
+counts_file <- file.path(data_dir, "reference", "Zea_mays_counts.txt")
 meta_file   <- file.path(data_dir, "metadata.csv")
 
 # reference taxa for all contrasts
@@ -264,7 +264,7 @@ library(vroom)
 library(dplyr)
 library(stringr)
 
-gtf_path <- file.path(data_dir, "Zea_mays.gtf")  # can be .gtf or .gtf.gz
+gtf_path <- file.path(data_dir, "reference", "Zea_mays.gtf")  # can be .gtf or .gtf.gz
 
 gtf_tx <- vroom::vroom(
   file = gtf_path,
