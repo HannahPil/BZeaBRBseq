@@ -2,7 +2,7 @@
 
 RNA-seq analysis pipeline for bulk RNA barcoding sequencing (BRB-seq) of the BZea near-isogenic introgression population. Identifies cis- and trans-eQTLs driven by teosinte introgressions into a B73 maize background.
 
-Preprocessing pipeline (`PIPE_00`–`PIPE_08`) developed by Jonathan Ojeda (Buckler Lab), followed by downstream expression, eQTL, and side analyses.
+Preprocessing pipeline (stages 00–08) developed by Jonathan Ojeda (Buckler Lab), followed by downstream expression, eQTL, and side analyses.
 
 ## Project structure
 
@@ -21,40 +21,46 @@ BZeaBRBseq/
 
 ## Naming convention
 
-Every script and its per-analysis data / batch wrapper carry a **short prefix** identifying the analysis it belongs to. Single-file analyses just use the prefix as the filename (e.g., `WGCNA.R`, `PCA.R`); multi-file analyses use `PREFIX_specific.ext` (e.g., `eQ_cis.R`, `FBX_analysis4_softclip_hpc.sh`).
+Every downstream analysis (not the main pipeline — see below) carries a **short prefix** identifying it. The rule:
+
+- **Commonly-recognized abbreviations** (WGCNA, PCA, TPM, DE) may stand alone as the filename: `WGCNA.R`, `PCA.R`.
+- **Less-recognized prefixes** are followed by a descriptive suffix so a new reader knows what's inside: `SG_single_gene_analysis.R`, `EXPR_expressionAnalysis.R`, `EXPORT_for_collaborators.R`.
+- **Multi-file analyses** always use the `PREFIX_specific.ext` form: `eQ_cis.R`, `eQ_trans.R`, `FBX_analysis4_softclip_hpc.sh`.
+
+The **main HPC pipeline** keeps its numbered filenames (`00_clean_metadata.sh`, …, `08_trimming_stats.sh`) — the numbering is the identifier.
 
 | Prefix   | Scope |
 |----------|-------|
-| `PIPE_`  | Main HPC pipeline stages 00–08 (fastq → count matrix) |
-| `EXPR`   | Expression heatmaps of candidate genes |
+| (00-08 numbered) | Main HPC pipeline stages (fastq → count matrix) |
+| `EXPR_`  | Expression heatmaps of candidate genes |
 | `DE`     | Genome-wide differential expression (edgeR) |
 | `eQ_`    | eQTL scans (cis, trans, global) |
-| `SG`     | Single-gene deep dives (B73 vs teo, co-expression) |
+| `SG_`    | Single-gene deep dives (B73 vs teo, co-expression) |
 | `WGCNA`  | Weighted gene co-expression network analysis |
 | `PCA`    | PCA / batch correction |
 | `TPM`    | Counts-to-TPM conversion |
-| `EXPORT` | Data tables for collaborators |
+| `EXPORT_`| Data tables for collaborators |
 | `FBX_`   | fbxl1 mapping-bias investigation (Rubén memo series) |
 | `REC_`   | One-off recovery (missing samples, etc.) |
 
 Corresponding data files carry the same prefix (`FBX_depth_matrix.tsv`, `FBX_library_sizes.csv`, etc.) so a `ls data/` groups by analysis at a glance. Shared inputs (metadata, gene lists) stay unprefixed.
 
-## HPC pipeline (`PIPE_00` – `PIPE_08`)
+## HPC pipeline (stages 00–08)
 
 Run on the NCSU sara queue via LSF wrappers in `batch/`. Each script assumes `baseDir=/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah` and reads/writes under that path.
 
 | Stage | Script | Description |
 |-------|--------|-------------|
-| 00 | `PIPE_00_clean_metadata.sh` | Clean and format sample metadata |
-| 02 | `PIPE_02_demultiplex.sh` | BRB-seq demultiplexing of pool fastqs into per-sample fastqs |
-| 03 | `PIPE_03_trimming_and_QC.sh` | Adapter trimming and quality control |
-| 04 | `PIPE_04_rRNA_filtering.sh` | Remove ribosomal RNA reads |
-| 05 | `PIPE_05_STAR_alignment.sh` | Align reads to Zea mays genome with STAR |
-| 06 | `PIPE_06_featureCounts_Zm.R` | Quantify gene-level read counts (`strandSpecific = 1`) |
-| 07 | `PIPE_07_generate_summary_statistics.sh` | Alignment and mapping summaries |
-| 08 | `PIPE_08_trimming_stats.sh` | Trimming statistics |
+| 00 | `00_clean_metadata.sh` | Clean and format sample metadata |
+| 02 | `02_demultiplex.sh` | BRB-seq demultiplexing of pool fastqs into per-sample fastqs |
+| 03 | `03_trimming_and_QC.sh` | Adapter trimming and quality control |
+| 04 | `04_rRNA_filtering.sh` | Remove ribosomal RNA reads |
+| 05 | `05_STAR_alignment.sh` | Align reads to Zea mays genome with STAR |
+| 06 | `06_featureCounts_Zm.R` | Quantify gene-level read counts (`strandSpecific = 1`) |
+| 07 | `07_generate_summary_statistics.sh` | Alignment and mapping summaries |
+| 08 | `08_trimming_stats.sh` | Trimming statistics |
 
-Submit with e.g. `cd batch && bsub < q_PIPE_05_STAR_alignment.sh`.
+Submit with e.g. `cd batch && bsub < q_05_STAR_alignment.sh`.
 
 ## Downstream analyses (local R scripts)
 
@@ -63,22 +69,22 @@ All scripts assume the working directory is the project root and read inputs fro
 | Script | Description |
 |--------|-------------|
 | `PCA.R` | PCA before and after plate batch correction (limma) |
-| `EXPR.R` | Expression heatmap of candidate genes across BZea lines |
+| `EXPR_expressionAnalysis.R` | Expression heatmap of candidate genes across BZea lines |
 | `DE.R` | Genome-wide differential expression (edgeR, taxa vs B73) + gene-specific modeling |
 | `eQ_cis.R` | Cis-eQTL scan using MatrixEQTL (introgression genotypes as predictors) |
 | `eQ_trans.R` | Trans-eQTL scan by source chromosome + Manhattan plots + single-gene trans scans |
 | `eQ_global.R` | Genome-wide eQTL architecture contact map, trans hotspot analysis, locus zoom |
-| `SG.R` | Single-gene expression plots (B73 vs teosinte, colored by taxa) + co-expression |
+| `SG_single_gene_analysis.R` | Single-gene expression plots (B73 vs teosinte, colored by taxa) + co-expression |
 | `WGCNA.R` | Weighted gene co-expression network analysis |
-| `EXPORT.R` | Export processed data tables for collaborators |
+| `EXPORT_for_collaborators.R` | Export processed data tables for collaborators |
 | `TPM.R` | Convert raw counts to TPM using exon-merged gene lengths |
 
 ### Key design notes
 
 - **Plates 1–4 only**: all scripts filter to sequenced plates 1–4.
-- **Normalization**: the eQTL scripts (`eQ_*`, `SG.R`) use raw library-size log2 CPM; the PCA / DE scripts (`PCA.R`, `EXPR.R`, `DE.R`) use edgeR TMM-normalized log2 CPM. Intentional; see per-script comments.
+- **Normalization**: the eQTL scripts (`eQ_*`, `SG_*`) use raw library-size log2 CPM; the PCA / DE scripts (`PCA.R`, `EXPR_*`, `DE.R`) use edgeR TMM-normalized log2 CPM. Intentional; see per-script comments.
 - **Covariates**: eQTL scripts control for plate; `DE.R` controls for spatial position (Row + Range).
-- **Single-gene focus**: `SG.R` has a `FOCUS_GENE` variable at the top for easy gene-by-gene work.
+- **Single-gene focus**: `SG_single_gene_analysis.R` has a `FOCUS_GENE` variable at the top for easy gene-by-gene work.
 
 ## Side analyses (`FBX_`, `REC_`, …)
 

@@ -7,4 +7,4 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -W 18:00
 
-../scripts/PIPE_05_STAR_alignment.sh Zea_mays
+../scripts/05_STAR_alignment.sh Zea_mays

@@ -49,7 +49,7 @@ print(rownames(win_norm))
 cat("\nSamples:", ncol(win_norm), "\n")
 
 # ---- 2. Classify samples by fbxl1 introgression status -------------------
-# Mirrors SG.R sample_df logic (keeps B73 controls)
+# Mirrors SG_single_gene_analysis.R sample_df logic (keeps B73 controls)
 teogeno  <- readRDS(file.path(data_dir, "results_list_new_name.rds"))
 teogeno  <- teogeno[!duplicated(names(teogeno))]
 metadata <- read.csv(file.path(data_dir, "metadata.csv"), stringsAsFactors = FALSE)

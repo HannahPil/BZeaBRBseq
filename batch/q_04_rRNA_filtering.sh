@@ -7,4 +7,4 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -W 12:00
 
-../scripts/PIPE_04_rRNA_filtering.sh
+../scripts/04_rRNA_filtering.sh

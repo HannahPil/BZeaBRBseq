@@ -58,10 +58,10 @@ echo "All alignments for $species completed."
 
 # Call the appropriate R script for counting reads based on species
 #if [ "$species" = "Zea_mays" ]; then
-#    Rscript /rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/PIPE_06_featureCounts_Zm.R "$species"
+#    Rscript /rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/06_featureCounts_Zm.R "$species"
 #else
-#    Rscript /rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/PIPE_06_featureCounts.R "$species"
+#    Rscript /rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/06_featureCounts.R "$species"
 #fi
 
 # After counting, run the summary statistics script
-#bash /rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/PIPE_07_generate_summary_statistics.sh "$species"
+#bash /rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/07_generate_summary_statistics.sh "$species"

@@ -12,4 +12,4 @@ module load conda
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
-Rscript ../scripts/PIPE_06_featureCounts_Zm.R Zea_mays
+Rscript ../scripts/06_featureCounts_Zm.R Zea_mays

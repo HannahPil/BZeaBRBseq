@@ -8,4 +8,4 @@
 #BSUB -W 12:00
 
 
-../scripts/PIPE_03_trimming_and_QC.sh
+../scripts/03_trimming_and_QC.sh

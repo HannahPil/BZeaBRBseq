@@ -3,7 +3,7 @@
 # ==============================================================================
 # FBX Analysis 0 — strand-setting sanity check (Rubén memo §6.2)
 #
-# featureCounts is currently run with strandSpecific=1 in PIPE_06_featureCounts_Zm.R.
+# featureCounts is currently run with strandSpecific=1 in 06_featureCounts_Zm.R.
 # Rerun featureCounts with all three strand settings (0/1/2) on a handful of
 # BAMs and report the fraction of reads assigned by each. The winning setting
 # has a markedly higher assignment rate than the others.
