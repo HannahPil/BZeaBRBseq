@@ -234,28 +234,50 @@ teo_taxon <- cds_per_sample |>
   ) |>
   dplyr::arrange(dplyr::desc(ratio_mean_over_B73_cds))
 
-# Rubén's 3'UTR length table from GFF3s (mexicana + parviglumis only;
-# diploperennis/luxurians/huehuetenangensis: NA — flag those explicitly).
-utr_lengths_bp <- tribble(
-  ~taxa_key,                    ~utr_bp,
-  "parviglumis",                215L,        # Zv-TIL01
-  "mexicana",                   285L,        # Zx-TIL18 (Zx-TIL25 = 293)
-  "diploperennis",              NA_integer_, # not verified
-  "luxurians",                  NA_integer_,
-  "huehuetenangensis",          NA_integer_
+# Lab-shorthand taxa -> donor taxon, derived from accession-code prefix
+# in metadata.csv: Zv=parviglumis, Zx=mexicana, Zd=diploperennis,
+# Zl=luxurians, Zh=huehuetenangensis.
+taxa_to_donor <- c(
+  Bals = "parviglumis",     Chal = "mexicana",
+  Dura = "mexicana",        Hueh = "huehuetenangensis",
+  Mesa = "mexicana",        Nobo = "mexicana",
+  Zdip = "diploperennis",   Zlux = "luxurians"
+)
+# Donor 3'UTR lengths from Rubén reply memo §4.3. Verified only for
+# parviglumis (Zv-TIL01, 215) and mexicana (Zx-TIL18, 285); distal taxa NA.
+donor_utr_bp_lookup <- c(
+  parviglumis        = 215L,
+  mexicana           = 285L,
+  diploperennis      = NA_integer_,
+  luxurians          = NA_integer_,
+  huehuetenangensis  = NA_integer_
 )
 teo_taxon <- teo_taxon |>
-  dplyr::mutate(taxa_lower = tolower(taxa)) |>
-  dplyr::mutate(donor_utr_bp = utr_lengths_bp$utr_bp[
-    match(sapply(taxa_lower, function(x)
-      utr_lengths_bp$taxa_key[which(sapply(utr_lengths_bp$taxa_key,
-                                           function(k) grepl(k, x)))[1]]),
-      utr_lengths_bp$taxa_key)])
+  dplyr::mutate(
+    donor        = unname(taxa_to_donor[taxa]),
+    donor_utr_bp = unname(donor_utr_bp_lookup[donor])
+  )
 
 cat("\nPer-donor-taxon CDS-window summary (Rubén §6.1 test):\n")
 print(teo_taxon, n = Inf)
 write.csv(teo_taxon, file.path(out_dir, "cds_ratio_by_taxon.csv"),
           row.names = FALSE)
+
+# Rubén §6.1 falsification test: CDS-window ratio vs donor 3'UTR length,
+# taxa where we know the UTR length. Geometry predicts a strong negative
+# correlation (shorter donor UTR -> reads shifted upstream -> higher CDS
+# ratio). Absence of correlation would falsify geometry as sole driver.
+verified <- teo_taxon |> dplyr::filter(!is.na(donor_utr_bp))
+if (nrow(verified) >= 3) {
+  cor_result <- cor.test(verified$donor_utr_bp,
+                         verified$ratio_mean_over_B73_cds,
+                         method = "spearman", exact = FALSE)
+  cat(sprintf(
+    "\nRubén §6.1 falsification test (verified taxa only, n=%d):\n  Spearman rho = %.3f, p = %.3g\n",
+    nrow(verified), cor_result$estimate, cor_result$p.value))
+} else {
+  cat("\nToo few verified-UTR taxa for §6.1 correlation test.\n")
+}
 
 # bar chart: CDS ratio per taxon, with observed 3.08x reference and
 # geometry-model prediction range (2.12 - 4.06x) shaded.
