@@ -141,14 +141,23 @@ ggsave(file.path(out_dir, "softclip_rate_by_group.png"),
        p_rate, width = 6, height = 5, dpi = 200)
 
 # start-position distribution across the window
-p_start <- ggplot(reads, aes(x = pos_rel, colour = Genotype)) +
+# samtools view returns reads that OVERLAP the region, so leftmost POS can be
+# far upstream for spliced reads (large N in CIGAR). Keep only reads whose
+# start actually falls within the window itself for the density.
+reads_in_window <- reads |>
+  dplyr::filter(pos >= CDS_START, pos <= CDS_END)
+
+p_start <- ggplot(reads_in_window, aes(x = pos_rel, colour = Genotype)) +
   geom_density(linewidth = 0.7) +
   geom_vline(xintercept = c(CDS_START - CDS_END, 0),
              linetype = "dashed", colour = "grey40") +
   scale_colour_manual(values = col_geno) +
+  scale_x_continuous(limits = c(CDS_START - CDS_END, 10)) +
   labs(
     title    = "Read start-position distribution within CDS window",
-    subtitle = "Displaced UTR reads cluster near 0 (3' edge). Genuine CDS reads spread evenly.",
+    subtitle = sprintf("Reads whose 5' end falls inside the window (%d B73, %d Teo). Displaced UTR reads cluster near 0 (3' edge).",
+                       sum(reads_in_window$Genotype == "B73"),
+                       sum(reads_in_window$Genotype == "Teo")),
     x = "bp from 3' edge of CDS window (0 = 17933902)",
     y = "density"
   ) +
@@ -175,8 +184,107 @@ p_softR <- ggplot(reads |> dplyr::filter(softR > 0),
 ggsave(file.path(out_dir, "softR_length_density.png"),
        p_softR, width = 8, height = 5, dpi = 200)
 
+# ---- 5. Per-taxon stratification (Rubén §9 — check the distal taxa) -----
+# Teo carriers only; sample-level means so a chatty sample can't dominate.
+teo_per_sample <- per_sample |> dplyr::filter(Genotype == "Teo")
+
+per_taxon <- teo_per_sample |>
+  dplyr::group_by(taxa) |>
+  dplyr::summarise(
+    n_samples          = dplyr::n(),
+    total_reads        = sum(n_reads),
+    mean_softclip_rate = mean(softclip_rate),
+    mean_softR         = mean(mean_softR),
+    frac_softR_gt5_mean = mean(frac_softR_gt5),
+    .groups = "drop"
+  ) |>
+  dplyr::arrange(dplyr::desc(mean_softclip_rate))
+
+# B73 reference row (from all B73 samples)
+b73_ref <- per_sample |> dplyr::filter(Genotype == "B73") |>
+  dplyr::summarise(
+    taxa               = "B73_ref",
+    n_samples          = dplyr::n(),
+    total_reads        = sum(n_reads),
+    mean_softclip_rate = mean(softclip_rate),
+    mean_softR         = mean(mean_softR),
+    frac_softR_gt5_mean = mean(frac_softR_gt5)
+  )
+per_taxon_full <- dplyr::bind_rows(per_taxon, b73_ref)
+
+cat("\nPer-taxon soft-clip summary (Teo carriers, plus B73 reference):\n")
+print(per_taxon_full, n = Inf)
+write.csv(per_taxon_full,
+          file.path(out_dir, "per_taxon_summary.csv"),
+          row.names = FALSE)
+
+# Flag: taxa Rubén hasn't verified for CDS conservation
+unverified_taxa <- c("Zlux", "Zdip", "Hueh")
+
+# bar plot: soft-clip rate per taxon, with B73 reference line
+b73_rate <- b73_ref$mean_softclip_rate
+b73_softR <- b73_ref$mean_softR
+
+p_tax_rate <- ggplot(per_taxon,
+                     aes(x = reorder(taxa, mean_softclip_rate),
+                         y = mean_softclip_rate,
+                         fill = taxa %in% unverified_taxa)) +
+  geom_hline(yintercept = b73_rate, linetype = "dashed", colour = "grey40") +
+  geom_col(width = 0.65, colour = "black") +
+  geom_text(aes(label = paste0("n=", n_samples)),
+            vjust = -0.3, size = 3.4) +
+  scale_fill_manual(
+    values = c(`TRUE` = "#f4a261", `FALSE` = "#03bec4"),
+    labels = c(`TRUE` = "CDS conservation NOT verified (Rubén §9)",
+               `FALSE` = "CDS conservation verified"),
+    name   = NULL) +
+  labs(
+    title    = "Soft-clip rate per Teo donor taxon (CDS window)",
+    subtitle = sprintf("Dashed line: B73 background rate = %.1f%%. Orange bars: distal taxa Rubén flagged as unverified.",
+                       100 * b73_rate),
+    x = NULL, y = "mean fraction reads soft-clipped"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"),
+        axis.text.x = element_text(angle = 20, hjust = 1),
+        legend.position = "top")
+
+ggsave(file.path(out_dir, "softclip_rate_by_taxon.png"),
+       p_tax_rate, width = 8, height = 5, dpi = 200)
+
+# same for mean trailing clip length
+p_tax_softR <- ggplot(per_taxon,
+                      aes(x = reorder(taxa, mean_softR),
+                          y = mean_softR,
+                          fill = taxa %in% unverified_taxa)) +
+  geom_hline(yintercept = b73_softR, linetype = "dashed", colour = "grey40") +
+  geom_col(width = 0.65, colour = "black") +
+  geom_text(aes(label = paste0("n=", n_samples)),
+            vjust = -0.3, size = 3.4) +
+  scale_fill_manual(
+    values = c(`TRUE` = "#f4a261", `FALSE` = "#03bec4"),
+    labels = c(`TRUE` = "CDS conservation NOT verified",
+               `FALSE` = "CDS conservation verified"),
+    name   = NULL) +
+  labs(
+    title    = "Mean trailing soft-clip length per Teo donor taxon",
+    subtitle = sprintf("Dashed line: B73 background = %.2f bp. Bigger bars = more sequence divergence at the read's 3' end.",
+                       b73_softR),
+    x = NULL, y = "mean softR (bp)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"),
+        axis.text.x = element_text(angle = 20, hjust = 1),
+        legend.position = "top")
+
+ggsave(file.path(out_dir, "softR_length_by_taxon.png"),
+       p_tax_softR, width = 8, height = 5, dpi = 200)
+
 cat("\nWrote:\n")
 cat("  ", file.path(out_dir, "per_sample_summary.csv"), "\n", sep = "")
+cat("  ", file.path(out_dir, "per_taxon_summary.csv"), "\n", sep = "")
 cat("  ", file.path(out_dir, "softclip_rate_by_group.png"), "\n", sep = "")
 cat("  ", file.path(out_dir, "start_position_density.png"), "\n", sep = "")
 cat("  ", file.path(out_dir, "softR_length_density.png"), "\n", sep = "")
+cat("  ", file.path(out_dir, "softclip_rate_by_taxon.png"), "\n", sep = "")
+cat("  ", file.path(out_dir, "softR_length_by_taxon.png"), "\n", sep = "")
