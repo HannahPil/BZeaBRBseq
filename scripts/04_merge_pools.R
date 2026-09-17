@@ -25,10 +25,7 @@
 #  hannah/BZeaBRBseq/data/starsolo/ and pull via git.)
 # ==============================================================================
 
-suppressPackageStartupMessages({
-  library(Matrix)
-  library(tidyverse)
-})
+suppressPackageStartupMessages(library(Matrix))
 
 data_dir  <- "data"
 # STARSOLO_ROOT env var points at the .mtx-holding tree on HPC. Default
