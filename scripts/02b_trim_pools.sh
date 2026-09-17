@@ -58,18 +58,12 @@ module load conda
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
-# Trimmomatic ships adapter FASTAs with the install; locate them for ILLUMINACLIP.
-# Prefer NexteraPE-PE.fa (BRB-seq uses Nextera adapters via tagmentation).
-adapter_dir=$(dirname "$(readlink -f "$(which trimmomatic)")")/../share/trimmomatic*/adapters
-adapter_dir=$(ls -d $adapter_dir 2>/dev/null | head -1)
-if [ -z "$adapter_dir" ] || [ ! -d "$adapter_dir" ]; then
-  # fallback for other conda layouts
-  adapter_dir=$(dirname "$(find /usr/local/usrapps/maize/hdpil/hdpil -name 'NexteraPE-PE.fa' 2>/dev/null | head -1)")
-fi
-adapter_file="${adapter_dir}/NexteraPE-PE.fa"
+# Trimmomatic ships adapter FASTAs with the install. Path is fixed by the
+# conda env location; confirmed present via `find` pre-flight.
+adapter_file="/usr/local/usrapps/maize/hdpil/hdpil/share/trimmomatic-0.39-2/adapters/NexteraPE-PE.fa"
 if [ ! -f "$adapter_file" ]; then
-  echo "ERROR: NexteraPE-PE.fa not found under $adapter_dir" >&2
-  echo "  Search manually: find /usr/local/usrapps/maize/hdpil/hdpil -name '*.fa' | grep -i adapter" >&2
+  echo "ERROR: adapter file not found at $adapter_file" >&2
+  echo "  Search: find /usr/local/usrapps/maize/hdpil/hdpil -name 'NexteraPE-PE.fa'" >&2
   exit 1
 fi
 
