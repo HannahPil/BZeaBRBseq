@@ -23,11 +23,16 @@
 # where POOL_N is 1..4.
 #
 # Inputs (HPC):
-#     $poolDir/BZeaBRB{N}_S{N}_L004_R1_001.fastq.gz      barcode+UMI reads (28 nt)
-#     $poolDir/BZeaBRB{N}_S{N}_L004_R2_001.fastq.gz      cDNA reads (variable)
+#     $baseDir/trimmed/pool_{N}_R1.fastq.gz              trimmed R1 (from 02b)
+#     $baseDir/trimmed/pool_{N}_R2.fastq.gz              trimmed R2 (from 02b)
 #     $repoDir/data/starsolo/barcode_whitelist.txt       from 02_prepare_barcodes.R
 #     $baseDir/Zea_mays/genomeIndex/                     existing STAR index
 #     $baseDir/Zea_mays/Zea_mays.gtf                     annotation
+#
+# Note: trimming is a separate stage (02b_trim_pools.sh) so we can control
+# what happens with the 150 PE overshoot. STARsolo's --clipAdapterType
+# CellRanger4 is tuned for the ~90 nt R2 length Alithea's manual assumes,
+# and would soft-clip inefficiently on 150 nt R2 with unclipped adapter.
 #
 # Outputs (HPC, per pool):
 #     $baseDir/starsolo/pool_N/Aligned.sortedByCoord.out.bam
@@ -53,10 +58,10 @@ fi
 # --- paths ----------------------------------------------------------------
 baseDir="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah"
 repoDir="$baseDir/BZeaBRBseq"
-poolDir="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez"
+trimDir="${baseDir}/trimmed"
 
-R1="${poolDir}/BZeaBRB${pool}_S${pool}_L004_R1_001.fastq.gz"
-R2="${poolDir}/BZeaBRB${pool}_S${pool}_L004_R2_001.fastq.gz"
+R1="${trimDir}/pool_${pool}_R1.fastq.gz"
+R2="${trimDir}/pool_${pool}_R2.fastq.gz"
 whitelist="${repoDir}/data/starsolo/barcode_whitelist.txt"
 starIndex="${baseDir}/Zea_mays/genomeIndex"    # existing index dir
 
