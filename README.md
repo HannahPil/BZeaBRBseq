@@ -2,7 +2,7 @@
 
 RNA-seq analysis pipeline for bulk RNA barcoding sequencing (BRB-seq) of the BZea near-isogenic introgression population. Identifies cis- and trans-eQTLs driven by teosinte introgressions into a B73 maize background.
 
-Preprocessing pipeline (stages 00–08) developed by Jonathan Ojeda (Buckler Lab), followed by downstream expression, eQTL, and side analyses.
+Preprocessing pipeline follows Alithea Genomics' July 2026 MERCURIUS™ BRB-seq data-analysis workflow (STARsolo-based, UMI-collapsed counts as default). The original pipeline from Jonathan Ojeda (Buckler Lab) is preserved under `scripts/legacy/` for reference.
 
 ## Project structure
 
@@ -10,11 +10,15 @@ Preprocessing pipeline (stages 00–08) developed by Jonathan Ojeda (Buckler Lab
 BZeaBRBseq/
 ├── data/                       # small tables + analysis outputs — tracked
 │   ├── external/               # reference genome, teogeno file — gitignored
-│   ├── processed/              # big pipeline outputs (counts, edgeR) — gitignored
-│   └── FBX_*, EQ_*, ...        # analysis-specific data (prefixed) — tracked
+│   ├── processed/              # big pipeline outputs (count matrices) — gitignored
+│   ├── starsolo/               # STARsolo whitelist + per-pool barcode maps — tracked
+│   ├── barcodes.txt            # plate_pos → 14 nt barcode, per V5B kit — tracked
+│   └── FBX_*, ...              # analysis-specific data (prefixed) — tracked
 ├── output/                     # figures, memos, plots — mostly gitignored
-├── scripts/                    # HPC pipeline + local R analyses (prefixed)
-├── batch/                      # LSF job submission wrappers (matches script prefixes)
+├── scripts/                    # pipeline + local R analyses (prefixed)
+│   └── legacy/                 # Buckler-lab pipeline (BRBseqTools + STAR + featureCounts)
+├── batch/                      # LSF job wrappers
+│   ├── legacy/                 # LSF wrappers for scripts/legacy/
 │   └── logs/                   # LSF stdout/stderr — gitignored
 └── BZeaBRBseq.Rproj            # RStudio project file
 ```
@@ -45,22 +49,42 @@ The **main HPC pipeline** keeps its numbered filenames (`00_clean_metadata.sh`, 
 
 Corresponding data files carry the same prefix (`FBX_depth_matrix.tsv`, `FBX_library_sizes.csv`, etc.) so a `ls data/` groups by analysis at a glance. Shared inputs (metadata, gene lists) stay unprefixed.
 
-## HPC pipeline (stages 00–08)
+## HPC pipeline (STARsolo, per Alithea July 2026 workflow)
 
-Run on the NCSU sara queue via LSF wrappers in `batch/`. Each script assumes `baseDir=/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah` and reads/writes under that path.
+Runs on the NCSU sara queue via LSF wrappers in `batch/`. Each script assumes `baseDir=/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah`, `repoDir=$baseDir/BZeaBRBseq`, and the STARsolo command comes straight from Alithea's July 2026 data-analysis manual §1.4 — one alignment step handles sample-barcode demux (from R1 first 14 nt), UMI extraction (R1 nt 15–28), adapter clipping, alignment, and UMI-collapsed gene counting. Dual-dedup mode (`--soloUMIdedup "1MM_Directional NoDedup"`) emits both the UMI-collapsed and raw-read matrices in the same run.
 
-| Stage | Script | Description |
-|-------|--------|-------------|
-| 00 | `00_clean_metadata.sh` | Clean and format sample metadata |
-| 02 | `02_demultiplex.sh` | BRB-seq demultiplexing of pool fastqs into per-sample fastqs |
-| 03 | `03_trimming_and_QC.sh` | Adapter trimming and quality control |
-| 04 | `04_rRNA_filtering.sh` | Remove ribosomal RNA reads |
-| 05 | `05_STAR_alignment.sh` | Align reads to Zea mays genome with STAR |
-| 06 | `06_featureCounts_Zm.R` | Quantify gene-level read counts (`strandSpecific = 1`) |
-| 07 | `07_generate_summary_statistics.sh` | Alignment and mapping summaries |
-| 08 | `08_trimming_stats.sh` | Trimming statistics |
+| Stage | Script | Description | Where it runs |
+|-------|--------|-------------|---------------|
+| 02  | `02_prepare_barcodes.R` | Build STARsolo barcode whitelist + per-pool barcode ↔ sample_id maps from `data/metadata.csv` + `data/barcodes.txt`. One-time (until new samples). | LOCAL or HPC |
+| 02b | `02b_trim_pools.sh POOL_N` | Trimmomatic PE on pool R1+R2 to trim the 150 PE overshoot before STARsolo (needed because Alithea's STARsolo command is tuned for ~90 nt R2, not 150 nt). Keeps R1/R2 in sync. | HPC (LSF array) |
+| 03  | `03_STARsolo_per_pool.sh POOL_N` | STARsolo alignment + demux + UMI count for one pool. Reads trimmed pool fastqs, writes to `hannah/starsolo/pool_N/Solo.out/Gene/raw/`. | HPC (LSF array) |
+| 04  | `04_merge_pools.R` | Merge per-pool `.mtx` outputs into two tab-delimited count matrices in `data/processed/`, plus a `starsolo_pool_qc.csv` summary. | HPC or LOCAL |
 
-Submit with e.g. `cd batch && bsub < q_05_STAR_alignment.sh`.
+**Submit commands** (once `02_prepare_barcodes.R` has been run and its outputs are in `data/starsolo/`):
+
+```bash
+cd batch
+bsub -J "trim[1-4]" < q_02b_trim.sh          # ~1-6 h per pool depending on size
+# wait for trim to finish, then:
+bsub -J "STARsolo[1-4]" < q_03_STARsolo.sh   # ~1.5-10 h per pool depending on size
+# wait for STARsolo to finish, then:
+bsub < q_04_merge_pools.sh                   # ~10 min
+```
+
+Pool 1 is by far the largest (~40 GB R1); pools 3–4 finish quickly. LSF array `[1-4]` fans all four pools onto separate hosts in parallel.
+
+**Outputs (canonical):**
+- `data/processed/Zea_mays_counts.txt` — UMI-collapsed count matrix (this is what downstream analyses read)
+- `data/processed/Zea_mays_counts_raw.txt` — raw-read count matrix (kept for PCR-bias comparison)
+- `data/processed/starsolo_pool_qc.csv` — per-pool trim + alignment + dedup summary
+
+**External resources the pipeline reads (not in the repo):**
+- `/rsstu/users/r/rrellan/sara/ref/STAR_index/` — lab-shared STAR index, built once from Zea mays B73 v5
+- `hannah/Zea_mays/Zea_mays.gtf` — gene annotation (also mirrored in `data/external/`)
+
+### Legacy pipeline (Buckler Lab, BRBseqTools + STAR + featureCounts)
+
+Preserved under `scripts/legacy/` (`00_clean_metadata.sh`, `02_demultiplex.sh`, `03_trimming_and_QC.sh`, `04_rRNA_filtering.sh`, `05_STAR_alignment.sh`, `06_featureCounts_Zm.R`, `07`, `08`) and `batch/legacy/`. Kept for reference — the original count matrix (raw read counts, no UMI dedup) was produced by this pipeline. Not intended to be re-run.
 
 ## Downstream analyses (local R scripts)
 
@@ -97,7 +121,7 @@ New side analyses go under a new prefix, following the same rule: single-file �
 
 ## Data layout
 
-`data/` is flat with per-file prefixes; two subfolders hold the large or per-machine files:
+`data/` is flat with per-file prefixes; subfolders hold the large or per-machine files:
 
 ```
 data/
@@ -106,9 +130,15 @@ data/
 │   ├── Zea_mays.gtf                # from MaizeGDB
 │   └── results_list_new_name.rds   # teogeno file (Rubén)
 ├── processed/                      # gitignored; big regenerable outputs
-│   ├── Zea_mays_counts.txt         # from PIPE_06
+│   ├── Zea_mays_counts.txt         # STARsolo UMI-collapsed (canonical)
+│   ├── Zea_mays_counts_raw.txt     # STARsolo raw reads (comparison)
+│   ├── starsolo_pool_qc.csv        # per-pool trim + alignment + dedup metrics
 │   ├── edgeR_log2cpm_TMM_filtered.csv  # from DE.R
 │   └── edgeR_results_taxa_plus_space.csv
+├── starsolo/                       # tracked; STARsolo pipeline inputs
+│   ├── barcode_whitelist.txt       # 96 barcodes, from 02_prepare_barcodes.R
+│   └── pool_{1,2,3,4}_barcode_map.tsv  # per-pool sample_id ↔ barcode
+├── barcodes.txt                    # plate_pos ↔ 14 nt barcode (V5B kit)
 ├── metadata.csv, metadata_all.csv, gene_names.csv, …   # shared (unprefixed)
 └── FBX_*.csv, FBX_*.tsv, FBX_*.bed, …                   # side-analysis data (prefixed)
 ```
@@ -120,7 +150,10 @@ data/
 | `data/external/Zea_mays.fasta` | not in git | Reference genome — MaizeGDB B73 v5 |
 | `data/external/Zea_mays.gtf` | not in git | Gene annotation — B73 v5 |
 | `data/external/results_list_new_name.rds` | not in git | Teosinte introgression segments per BZea genotype |
-| `data/processed/Zea_mays_counts.txt` | not in git | Gene-level count matrix (regenerable by rerunning `PIPE_06`) |
+| `data/processed/Zea_mays_counts.txt` | not in git | UMI-collapsed gene count matrix (regenerable by rerunning the STARsolo pipeline: 02b → 03 → 04) |
+| `data/starsolo/barcode_whitelist.txt` | tracked | 96 barcodes for STARsolo demux (from `02_prepare_barcodes.R`) |
+| `data/starsolo/pool_N_barcode_map.tsv` | tracked | Per-pool barcode → sample_id map (from `02_prepare_barcodes.R`) |
+| `data/barcodes.txt` | tracked | Plate-position → 14 nt barcode for the V5B kit |
 | `data/metadata.csv` | tracked | Sample metadata (sample_id, genotype, taxa, plate, Row, Range) |
 | `data/Allelic_series_for_expression.csv` | tracked | Which genotypes carry teosinte at each gene |
 | `data/candidate_genes.csv` | tracked | Candidate gene list with categories (FT, targ, GWAS, Fst) |
