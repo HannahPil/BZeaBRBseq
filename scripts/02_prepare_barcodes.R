@@ -11,8 +11,8 @@
 #
 # Inputs:
 #   data/metadata.csv                                sample_id, plate_pos, plate
-#   BARCODES_TXT env var (default: hpworking/barcodes.txt on HPC)
-#     Format: Name (plate_pos, e.g. A01) <tab> B1 (barcode)
+#   data/barcodes.txt                                Name (plate_pos, e.g. A01) <tab> B1 (barcode)
+#     Override the path via BARCODES_TXT env var if needed.
 #
 # Outputs (all under data/starsolo/):
 #   barcode_whitelist.txt              96 barcodes, one per line
@@ -25,10 +25,8 @@ data_dir <- "data"
 out_dir  <- file.path(data_dir, "starsolo")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-bc_path <- Sys.getenv(
-  "BARCODES_TXT",
-  unset = "/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hpworking/barcodes.txt"
-)
+bc_path <- Sys.getenv("BARCODES_TXT",
+                      unset = file.path(data_dir, "barcodes.txt"))
 if (!file.exists(bc_path)) {
   stop("barcodes.txt not found at: ", bc_path,
        "\n  Set BARCODES_TXT=<path> or copy the file into the repo.")
