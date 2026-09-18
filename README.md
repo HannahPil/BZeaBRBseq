@@ -141,7 +141,7 @@ data/
 │   ├── barcode_whitelist.txt       # 96 barcodes, from 02_prepare_barcodes.R
 │   └── pool_{1,2,3,4}_barcode_map.tsv  # per-pool sample_id ↔ barcode
 ├── barcodes.txt                    # plate_pos ↔ 14 nt barcode (V5B kit)
-├── metadata.csv, metadata_all.csv, gene_names.csv, …   # shared (unprefixed)
+├── metadata.csv, gene_names.csv, …            # shared (unprefixed)
 └── FBX_*.csv, FBX_*.tsv, FBX_*.bed, …                   # side-analysis data (prefixed)
 ```
 
