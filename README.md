@@ -51,6 +51,8 @@ Corresponding data files carry the same prefix (`FBX_depth_matrix.tsv`, `FBX_lib
 
 ## HPC pipeline (STARsolo, per Alithea July 2026 workflow)
 
+Detailed usage — cold start, adding new samples, rerunning one pool, troubleshooting — lives in [`docs/PIPELINE.md`](docs/PIPELINE.md). Section below is an overview.
+
 Runs on the NCSU sara queue via LSF wrappers in `batch/`. Each script assumes `baseDir=/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah`, `repoDir=$baseDir/BZeaBRBseq`, and the STARsolo command comes straight from Alithea's July 2026 data-analysis manual §1.4 — one alignment step handles sample-barcode demux (from R1 first 14 nt), UMI extraction (R1 nt 15–28), adapter clipping, alignment, and UMI-collapsed gene counting. Dual-dedup mode (`--soloUMIdedup "1MM_Directional NoDedup"`) emits both the UMI-collapsed and raw-read matrices in the same run.
 
 | Stage | Script | Description | Where it runs |
