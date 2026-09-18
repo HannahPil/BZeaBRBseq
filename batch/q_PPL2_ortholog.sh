@@ -7,9 +7,9 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -W 2:00
 
-# blastp / makeblastdb are in the pipeline conda env
-module load conda
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate /usr/local/usrapps/maize/hdpil/hdpil
+# blastp / makeblastdb come from the cluster module, not the pipeline conda env
+# (the maize env has no BLAST). seqtk is absent too; the script falls back to
+# awk for sequence extraction, so nothing else is needed here.
+module load blast/2.17.0
 
 bash ../scripts/PPL2_ortholog_check_hpc.sh
