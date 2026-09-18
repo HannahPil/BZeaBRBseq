@@ -54,7 +54,7 @@ done
 mkdir -p "$recDir"
 
 # ---- write the minimal barcodes file (5 rows, tab-separated) ---------------
-# Barcode sequences come from the original hpworking/barcodes.txt entries
+# Barcode sequences come from data/barcodes.txt entries
 # for positions A05-A09.
 cat > "$recBarcodes" <<'EOF'
 Name	B1
