@@ -107,4 +107,62 @@ cat(sprintf(
   100 * quantile(dedup_rate, 0.25, na.rm = TRUE),
   100 * quantile(dedup_rate, 0.75, na.rm = TRUE)))
 
+# --- per-pool QC summary ------------------------------------------------
+# Parses:
+#   $baseDir/trimmed/pool_N_trim.log    for Trimmomatic input / surviving pairs
+#   $solo_root/pool_N/Log.final.out     for STAR input reads / uniquely mapped
+#   the merged umi/raw matrices         for library-size totals
+# Writes: data/processed/starsolo_pool_qc.csv
+
+trim_root <- Sys.getenv("TRIM_ROOT",
+                        unset = "/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah/trimmed")
+
+# helper: pull one number out of a text file matching a regex on a full line
+grep1 <- function(path, pattern) {
+  if (!file.exists(path)) return(NA_real_)
+  lines <- readLines(path, warn = FALSE)
+  m <- regmatches(lines, regexpr(pattern, lines, perl = TRUE))
+  if (length(m) == 0) return(NA_real_)
+  as.numeric(regmatches(m[[1]], regexpr("[0-9]+(\\.[0-9]+)?", m[[1]])))
+}
+
+pool_map <- lapply(1:4, function(p) {
+  bc_path <- file.path(map_dir, sprintf("pool_%d_barcode_map.tsv", p))
+  read.table(bc_path, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+})
+
+qc <- do.call(rbind, lapply(1:4, function(p) {
+  trim_log  <- file.path(trim_root, sprintf("pool_%d_trim.log", p))
+  star_log  <- file.path(solo_root, sprintf("pool_%d", p), "Log.final.out")
+
+  trim_in    <- grep1(trim_log, "Input Read Pairs:\\s*[0-9]+")
+  trim_surv  <- grep1(trim_log, "Both Surviving:\\s*[0-9]+")
+  star_in    <- grep1(star_log, "Number of input reads\\s*\\|\\s*[0-9]+")
+  uniq_n     <- grep1(star_log, "Uniquely mapped reads number\\s*\\|\\s*[0-9]+")
+  uniq_pct   <- grep1(star_log, "Uniquely mapped reads %\\s*\\|\\s*[0-9.]+")
+
+  sids <- pool_map[[p]]$sample_id
+  umi_tot <- sum(umi_lib[names(umi_lib) %in% sids], na.rm = TRUE)
+  raw_tot <- sum(raw_lib[names(raw_lib) %in% sids], na.rm = TRUE)
+  dedup_pool <- if (raw_tot > 0) 100 * (1 - umi_tot / raw_tot) else NA_real_
+
+  data.frame(
+    pool                 = p,
+    trim_input_pairs     = trim_in,
+    trim_survived_pairs  = trim_surv,
+    trim_survival_pct    = if (!is.na(trim_in) && trim_in > 0) 100 * trim_surv / trim_in else NA_real_,
+    starsolo_input_reads = star_in,
+    uniquely_mapped      = uniq_n,
+    uniquely_mapped_pct  = uniq_pct,
+    umi_reads_total      = umi_tot,
+    raw_reads_total      = raw_tot,
+    dedup_rate_pct       = dedup_pool
+  )
+}))
+qc_path <- file.path(out_dir, "starsolo_pool_qc.csv")
+write.csv(qc, qc_path, row.names = FALSE)
+cat("\nPer-pool QC summary:\n")
+print(qc, row.names = FALSE, digits = 4)
+cat("Wrote ", qc_path, "\n", sep = "")
+
 cat("\nDone.\n")
