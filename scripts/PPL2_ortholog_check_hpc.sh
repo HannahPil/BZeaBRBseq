@@ -39,34 +39,25 @@ mkdir -p "$refDir" "$outDir"
 MAIZE_PROT="$refDir/Zm-B73-REFERENCE-NAM-5.0_Zm00001eb.1.protein.fa"
 ATH_PROT="$refDir/Athaliana_TAIR10_pep.fa"
 
-# ---- 1. references -------------------------------------------------------
-if [ ! -s "$MAIZE_PROT" ]; then
-  echo "Fetching B73v5 proteome from MaizeGDB..."
-  curl -fsSL -o "${MAIZE_PROT}.gz" \
-    "https://download.maizegdb.org/Zm-B73-REFERENCE-NAM-5.0/Zm-B73-REFERENCE-NAM-5.0_Zm00001eb.1.protein.fa.gz"
-  gunzip -f "${MAIZE_PROT}.gz"
-fi
-echo "Maize proteome: $(grep -c '^>' "$MAIZE_PROT") sequences"
-
-if [ ! -s "$ATH_PROT" ]; then
-  echo "Fetching Arabidopsis reference proteome from UniProt..."
-  curl -fsSL -o "$ATH_PROT" \
-    "https://rest.uniprot.org/uniprotkb/stream?query=organism_id:3702+AND+reviewed:true&format=fasta"
-fi
-echo "Arabidopsis proteome: $(grep -c '^>' "$ATH_PROT") sequences"
-
-# ---- 2. query sequences: PPL2 plus two family controls -------------------
-# Pulled by gene name rather than hard-coded accession so the sequences are
-# whatever UniProt currently holds, not whatever was pasted into a script.
+# ---- 1. references (fetched beforehand, on the login node) ---------------
+# Hazel compute nodes have no outbound internet -- a job that curls here exits
+# 28 after ~2 min. scripts/PPL2_ortholog_fetch.sh downloads all three on the
+# login node; this script only reads them.
 QUERY="$outDir/PPL2_query.faa"
-: > "$QUERY"
-for g in PPL2 PPL1 PSBP1; do
-  echo "  fetching At $g ..."
-  curl -fsSL \
-    "https://rest.uniprot.org/uniprotkb/stream?query=gene:${g}+AND+organism_id:3702+AND+reviewed:true&format=fasta" \
-    >> "$QUERY"
-done
-echo "Query file: $(grep -c '^>' "$QUERY") sequences"
+missing=()
+[ -s "$MAIZE_PROT" ] || missing+=("$MAIZE_PROT")
+[ -s "$ATH_PROT" ]   || missing+=("$ATH_PROT")
+[ -s "$QUERY" ]      || missing+=("$QUERY")
+if [ "${#missing[@]}" -gt 0 ]; then
+  echo "ERROR: missing reference files:" >&2
+  printf '  %s\n' "${missing[@]}" >&2
+  echo "Run this on the LOGIN node first:" >&2
+  echo "  bash scripts/PPL2_ortholog_fetch.sh" >&2
+  exit 1
+fi
+echo "Maize proteome:       $(grep -c '^>' "$MAIZE_PROT") sequences"
+echo "Arabidopsis proteome: $(grep -c '^>' "$ATH_PROT") sequences"
+echo "Query:                $(grep -c '^>' "$QUERY") sequences"
 grep '^>' "$QUERY"
 
 # ---- 3. forward BLAST: Arabidopsis -> maize ------------------------------
