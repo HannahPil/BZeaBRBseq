@@ -63,7 +63,7 @@ trimDir="${baseDir}/trimmed"
 R1="${trimDir}/pool_${pool}_R1.fastq.gz"
 R2="${trimDir}/pool_${pool}_R2.fastq.gz"
 whitelist="${repoDir}/data/starsolo/barcode_whitelist.txt"
-starIndex="${baseDir}/Zea_mays/genomeIndex"    # existing index dir
+starIndex="/rsstu/users/r/rrellan/sara/ref/STAR_index"    # shared lab STAR index (same one the legacy 05_STAR_alignment.sh used)
 
 outDir="${baseDir}/starsolo/pool_${pool}"
 mkdir -p "$outDir"
