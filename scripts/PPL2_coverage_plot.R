@@ -34,8 +34,12 @@ suppressPackageStartupMessages({
 FOCUS_GENE   <- "Zm00001eb012750"   # ppl2 / PnsL1
 GENE_START   <- 42030859L; GENE_END <- 42032683L    # + strand, 1825 bp
 NBR_UP_END   <- 42030276L           # Zm00001eb012740 ends here
-NBR_DN_START <- 42032708L           # Zm00001eb012760 starts here (- strand)
-REGION_START <- 42029800L; REGION_END <- 42033600L
+NBR_DN       <- "Zm00001eb012760"
+NBR_DN_START <- 42032708L           # - strand, so this end is its 3' terminus
+NBR_DN_END   <- 42041803L           # ... and this end is its 5'; 9.1 kb total
+# The ppl2 panel keeps the original view; the depth matrix now runs to 42042300
+# so the neighbour can be profiled over its whole length in section 6.
+VIEW_START   <- 42029800L; VIEW_END <- 42033600L
 
 data_dir <- "data"
 out_dir  <- file.path("output", "PPL2_coverage")
@@ -105,7 +109,8 @@ exons <- as.data.frame(gtf) |>
   dplyr::filter(type == "exon", grepl(FOCUS_GENE, gene_id)) |>
   dplyr::distinct(start, end)
 
-p <- ggplot(prof, aes(pos, mean_cpm, colour = group, fill = group)) +
+p <- ggplot(prof |> dplyr::filter(pos >= VIEW_START, pos <= VIEW_END),
+            aes(pos, mean_cpm, colour = group, fill = group)) +
   annotate("rect", xmin = GENE_START, xmax = GENE_END,
            ymin = -Inf, ymax = Inf, fill = "grey85", alpha = 0.45) +
   annotate("rect", xmin = exons$start, xmax = exons$end,
@@ -152,5 +157,55 @@ summ <- long |>
 cat("\n=== where the reads sit ===\n")
 print(as.data.frame(summ), digits = 3, row.names = FALSE)
 write.csv(summ, file.path(out_dir, "ppl2_coverage_summary.csv"), row.names = FALSE)
+
+# ---- 6. the downstream neighbour, over its whole length -------------------
+# Why: the first window reached only 893 bp into Zm00001eb012760 and carriers
+# looked 2.16x HIGHER there, while gene-level counts put them at 0.71x. Either
+# the stub was unrepresentative, or the excess at the stub is ppl2 read-through
+# rather than neighbour signal. Profiling the full 9.1 kb separates them:
+#   - deficit spread evenly across the body -> mapping loss on divergent
+#     teosinte sequence, since the introgression covers this gene too
+#   - deficit concentrated somewhere        -> regulatory
+if (max(depth$pos) < NBR_DN_END) {
+  cat("\n[section 6 skipped: depth matrix stops at ", max(depth$pos),
+      ", before the neighbour's far end at ", NBR_DN_END,
+      ". Rerun PPL2_coverage_hpc.sh with the widened REGION.]\n", sep = "")
+} else {
+  nbr <- long |>
+    dplyr::filter(pos >= NBR_DN_START, pos <= NBR_DN_END) |>
+    dplyr::mutate(offset = pos - GENE_END,          # distance past ppl2's 3' end
+                  bin = (offset %/% 250L) * 250L) |>
+    dplyr::group_by(bin, group) |>
+    dplyr::summarise(mean_cpm = mean(cpm), .groups = "drop") |>
+    tidyr::pivot_wider(names_from = group, values_from = mean_cpm) |>
+    dplyr::rename(B73bg = `B73 background`, carrier = `Teosinte carrier`) |>
+    dplyr::mutate(ratio = carrier / pmax(B73bg, 1e-9))
+
+  cat("\n=== Zm00001eb012760 across its full 9.1 kb, 250 bp bins ===\n")
+  cat("    offset = bp past ppl2's 3' end. Neighbour runs +25 to +9120.\n")
+  print(as.data.frame(nbr |>
+    dplyr::transmute(offset_bp = bin, B73bg = round(B73bg, 2),
+                     carrier = round(carrier, 2), ratio = round(ratio, 2))),
+    row.names = FALSE)
+  write.csv(nbr, file.path(out_dir, "ppl2_neighbour_profile.csv"), row.names = FALSE)
+
+  pn <- ggplot(nbr |> tidyr::pivot_longer(c(B73bg, carrier),
+                                          names_to = "group", values_to = "cpm"),
+               aes(bin, cpm, colour = group)) +
+    geom_line(linewidth = 0.7) + geom_point(size = 1.2) +
+    scale_colour_manual(values = c(B73bg = "#1f77b4", carrier = "#d62728"),
+                        labels = c("B73 background", "Teosinte carrier")) +
+    labs(title = paste0("Coverage across ", NBR_DN, " (the downstream neighbour)"),
+         subtitle = paste("Minus strand: its 3' end is on the LEFT.",
+                          "250 bp bins, library-normalised."),
+         x = "bp past ppl2's 3' end", y = "Mean depth (CPM)", colour = NULL) +
+    theme_bw(base_size = 13) +
+    theme(plot.title = element_text(face = "bold"),
+          plot.subtitle = element_text(colour = "grey30"),
+          legend.position = "top")
+  print(pn)
+  ggsave(file.path(out_dir, "ppl2_neighbour_profile.png"), pn,
+         width = 10, height = 4.5, dpi = 300)
+}
 
 cat("\nSaved to ", out_dir, "\n", sep = "")

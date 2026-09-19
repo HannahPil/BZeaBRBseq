@@ -39,7 +39,7 @@
 # ships the output to local via git (no WinSCP).
 #
 # Output:
-#   $repoDir/data/PPL2_depth_matrix.tsv   (3801 rows) x (2 + N samples) columns
+#   $repoDir/data/PPL2_depth_matrix.tsv   (12501 rows) x (2 + N samples) columns
 # ==============================================================================
 
 set -euo pipefail
@@ -50,7 +50,14 @@ alignDir="$baseDir/alignments"
 outDir="$repoDir/data"
 mkdir -p "$outDir"
 
-REGION="chr1:42029800-42033600"
+# Widened 2026-09-19 to span the whole downstream neighbour. The first run
+# stopped at 42033600, which covered only 893 bp of Zm00001eb012760's 9.1 kb.
+# Over that 3' stub carriers looked 2.16x HIGHER, while gene-level counts put
+# them at 0.71x -- so the stub was not representative. This window reaches past
+# the neighbour's far end (42041803) to settle whether the carrier deficit is
+# spread evenly across its body (mapping loss on divergent teosinte sequence)
+# or concentrated somewhere (regulatory). Strict superset of the old window.
+REGION="chr1:42029800-42042300"
 
 mapfile -t BAMS < <(ls "$alignDir"/*_Aligned.sortedByCoord.out.bam | sort)
 n=${#BAMS[@]}
