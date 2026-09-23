@@ -42,7 +42,7 @@ out="$repoDir/data/PPL2_read_fate.tsv"
 
 REGION="chr1:42032300-42041900"
 
-printf "pool\twindow\tstrand\tgene_assigned\tn_reads\tn_umi\n" > "$out"
+printf "pool\twindow\tstrand\tgene_assigned\tbarcode\tn_reads\tn_umi\n" > "$out"
 
 for pool in 1 2 3 4; do
   bam="$soloDir/pool_${pool}/Aligned.sortedByCoord.out.bam"
@@ -64,17 +64,18 @@ for pool in 1 2 3 4; do
         pos = $4
         # int($2/16)%2 tests FLAG bit 0x10 without gawk-only and()
         strand = (int($2 / 16) % 2) ? "minus" : "plus"
-        gx = "-"; ub = "-"
+        gx = "-"; ub = "-"; cb = "-"
         for (i = 12; i <= NF; i++) {
           if ($i ~ /^GX:Z:/) { gx = substr($i, 6) }
           else if ($i ~ /^UB:Z:/) { ub = substr($i, 6) }
+          else if ($i ~ /^CB:Z:/) { cb = substr($i, 6) }
         }
         if      (pos >= 42032384 && pos <= 42032683) w = "PPL2_3P"
         else if (pos >= 42032684 && pos <= 42032707) w = "GAP"
         else if (pos >= 42032708 && pos <= 42032960) w = "PEAK"
         else if (pos >  42032960 && pos <= 42041803) w = "NBR_BODY"
         else                                          w = "OUTSIDE"
-        key = pool OFS w OFS strand OFS gx
+        key = pool OFS w OFS strand OFS gx OFS cb
         n[key]++
         if (ub != "-") u[key]++
       }
@@ -85,8 +86,17 @@ done
 echo
 echo "wrote $out ($(($(wc -l < "$out") - 1)) rows)"
 echo
-echo "=== totals by window / strand / assigned gene ==="
-awk -F'\t' 'NR>1 { r[$2 FS $3 FS $4] += $5 } END {
-  printf "%-10s %-6s %-18s %10s\n", "window", "strand", "assigned", "reads"
-  for (k in r) { split(k, a, FS); printf "%-10s %-6s %-18s %10d\n", a[1], a[2], a[3], r[k] }
+echo "=== totals by window / strand / assigned gene (barcodes pooled) ==="
+awk -F'\t' 'NR>1 { r[$2 FS $3 FS $4] += $6; u[$2 FS $3 FS $4] += $7 } END {
+  printf "%-10s %-6s %-18s %10s %10s\n", "window", "strand", "assigned", "reads", "UMIs"
+  for (k in r) { split(k, a, FS)
+    printf "%-10s %-6s %-18s %10d %10d\n", a[1], a[2], a[3], r[k], u[k] }
 }' "$out" | sort -k1,1 -k2,2 -k4,4nr
+
+echo
+echo "=== how many distinct barcodes carry the unassigned plus-strand PEAK pile? ==="
+echo "(if read-through, it should be the ~24 Teo samples; if an artifact, most of 384)"
+awk -F'\t' 'NR>1 && $2=="PEAK" && $3=="plus" && $4=="-" && $5!="-" { bc[$5] += $7 }
+  END { n = 0; tot = 0; for (b in bc) { n++; tot += bc[b] }
+        printf "  barcodes with any: %d\n  total UMIs: %d\n", n, tot
+        printf "  mean UMIs per barcode: %.0f\n", (n ? tot / n : 0) }' "$out"
