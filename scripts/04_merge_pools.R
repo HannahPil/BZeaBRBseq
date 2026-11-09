@@ -9,8 +9,15 @@
 #   features.tsv                    gene IDs (same across pools; sanity-check)
 #   barcodes.tsv                    barcodes actually seen in this pool
 #
+# Which pools are merged:
+#   - POOLS env var if set (e.g. POOLS="1 2 3 4 5 7 8 9"), else
+#   - every pool_N directory under STARSOLO_ROOT.
+#   Any selected pool missing a matrix, barcodes.tsv, features.tsv,
+#   Log.final.out or its barcode map stops the script with the pool named,
+#   so a failed STARsolo run is never merged silently or dropped silently.
+#
 # This script:
-#   - reads all four pools' matrices
+#   - reads every selected pool's matrices
 #   - maps barcode -> sample_id using the per-pool barcode maps from
 #     02_prepare_barcodes.R
 #   - column-binds pools into single gene x sample matrices
@@ -36,6 +43,37 @@ map_dir   <- file.path(data_dir, "starsolo")     # barcode maps always in repo
 out_dir   <- file.path(data_dir, "processed")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 cat("STARsolo output root: ", solo_root, "\n", sep = "")
+
+# --- choose pools -------------------------------------------------------
+pools_env <- trimws(Sys.getenv("POOLS", unset = ""))
+if (nzchar(pools_env)) {
+  pools <- as.integer(strsplit(pools_env, "[ ,]+")[[1]])
+  if (anyNA(pools)) stop("POOLS must be integers separated by spaces or commas: ", pools_env)
+} else {
+  dirs  <- list.files(solo_root, pattern = "^pool_[0-9]+$")
+  pools <- as.integer(sub("^pool_", "", dirs))
+}
+pools <- sort(unique(pools))
+if (length(pools) == 0) stop("No pool_N directories found under ", solo_root)
+cat("Pools to merge: ", paste(pools, collapse = " "), "\n", sep = "")
+
+required <- c(file.path("Solo.out", "Gene", "raw",
+                        c("umiDedup-1MM_Directional.mtx", "umiDedup-NoDedup.mtx",
+                          "barcodes.tsv", "features.tsv")),
+              "Log.final.out")
+problems <- character(0)
+for (p in pools) {
+  pdir <- file.path(solo_root, sprintf("pool_%d", p))
+  miss <- required[!file.exists(file.path(pdir, required)) |
+                   file.size(file.path(pdir, required)) %in% 0]
+  if (length(miss) > 0) problems <- c(problems, sprintf("pool %d: missing %s", p, paste(miss, collapse = ", ")))
+  map_path <- file.path(map_dir, sprintf("pool_%d_barcode_map.tsv", p))
+  if (!file.exists(map_path)) problems <- c(problems, sprintf("pool %d: missing %s (run 02_prepare_barcodes.R)", p, map_path))
+}
+if (length(problems) > 0) {
+  stop("Incomplete pools; fix them or set POOLS to the ones to merge:\n  ",
+       paste(problems, collapse = "\n  "))
+}
 
 # --- read per-pool matrix + barcode map -----------------------------------
 read_pool <- function(p, matrix_name) {
@@ -65,6 +103,12 @@ read_pool <- function(p, matrix_name) {
   # rename columns barcode -> sample_id
   bc_to_sid <- setNames(map$sample_id, map$barcode)
   colnames(mat) <- unname(bc_to_sid[colnames(mat)])
+  absent <- setdiff(map$sample_id, colnames(mat))
+  if (length(absent) > 0) {
+    warning(sprintf("Pool %d: %d mapped sample(s) have no column in %s: %s",
+                    p, length(absent), matrix_name,
+                    paste(utils::head(absent, 5), collapse = ", ")))
+  }
   cat(sprintf("Pool %d [%s]: %d genes x %d samples\n",
               p, matrix_name, nrow(mat), ncol(mat)))
   mat
@@ -72,7 +116,7 @@ read_pool <- function(p, matrix_name) {
 
 merge_pools <- function(matrix_name, out_path) {
   cat("\n=== Merging pools for ", matrix_name, " ===\n", sep = "")
-  mats <- lapply(1:4, read_pool, matrix_name = matrix_name)
+  mats <- lapply(pools, read_pool, matrix_name = matrix_name)
 
   # sanity: same gene set across pools?
   gene_ok <- all(vapply(mats[-1], function(m)
@@ -80,6 +124,9 @@ merge_pools <- function(matrix_name, out_path) {
   if (!gene_ok) stop("Gene ID sets differ across pools -- can't merge")
 
   combined <- do.call(cbind, mats)
+  dup <- colnames(combined)[duplicated(colnames(combined))]
+  if (length(dup) > 0) stop("sample_id(s) appear in more than one pool: ",
+                            paste(utils::head(dup, 5), collapse = ", "))
   cat(sprintf("Combined: %d genes x %d samples\n",
               nrow(combined), ncol(combined)))
 
@@ -126,12 +173,12 @@ grep1 <- function(path, pattern) {
   as.numeric(regmatches(m[[1]], regexpr("[0-9]+(\\.[0-9]+)?", m[[1]])))
 }
 
-pool_map <- lapply(1:4, function(p) {
+pool_map <- setNames(lapply(pools, function(p) {
   bc_path <- file.path(map_dir, sprintf("pool_%d_barcode_map.tsv", p))
   read.table(bc_path, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
-})
+}), as.character(pools))
 
-qc <- do.call(rbind, lapply(1:4, function(p) {
+qc <- do.call(rbind, lapply(pools, function(p) {
   trim_log  <- file.path(trim_root, sprintf("pool_%d_trim.log", p))
   star_log  <- file.path(solo_root, sprintf("pool_%d", p), "Log.final.out")
 
@@ -141,7 +188,7 @@ qc <- do.call(rbind, lapply(1:4, function(p) {
   uniq_n     <- grep1(star_log, "Uniquely mapped reads number\\s*\\|\\s*[0-9]+")
   uniq_pct   <- grep1(star_log, "Uniquely mapped reads %\\s*\\|\\s*[0-9.]+")
 
-  sids <- pool_map[[p]]$sample_id
+  sids <- pool_map[[as.character(p)]]$sample_id
   umi_tot <- sum(umi_lib[names(umi_lib) %in% sids], na.rm = TRUE)
   raw_tot <- sum(raw_lib[names(raw_lib) %in% sids], na.rm = TRUE)
   dedup_pool <- if (raw_tot > 0) 100 * (1 - umi_tot / raw_tot) else NA_real_

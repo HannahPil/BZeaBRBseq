@@ -70,4 +70,4 @@ echo
 echo "=== query sequences ==="
 grep '^>' "$QUERY"
 echo
-echo "All references present. Now submit:  cd batch && bsub < q_PPL2_ortholog.sh"
+echo "All references present. Now submit:  cd batch && sbatch q_PPL2_ortholog.sh"

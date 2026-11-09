@@ -20,14 +20,19 @@
 #
 # Usage:
 #     bash scripts/03_STARsolo_per_pool.sh <POOL_N>
-# where POOL_N is 1..4.
+# where POOL_N is any pool (= plate) number that 02b has trimmed.
 #
 # Inputs (HPC):
 #     $baseDir/trimmed/pool_{N}_R1.fastq.gz              trimmed R1 (from 02b)
 #     $baseDir/trimmed/pool_{N}_R2.fastq.gz              trimmed R2 (from 02b)
+#     $baseDir/trimmed/pool_{N}_trim.log                 must show a finished trim
 #     $repoDir/data/starsolo/barcode_whitelist.txt       from 02_prepare_barcodes.R
-#     $baseDir/Zea_mays/genomeIndex/                     existing STAR index
-#     $baseDir/Zea_mays/Zea_mays.gtf                     annotation
+#     $repoDir/data/starsolo/pool_{N}_barcode_map.tsv    checked here so 04 can't fail later
+#     /rsstu/users/r/rrellan/sara/ref/STAR_index         shared lab STAR index
+#
+# After STAR exits, the script checks that both matrices, barcodes.tsv,
+# features.tsv and Log.final.out exist and writes $outDir/DONE. 04_merge_pools.R
+# refuses to merge a pool directory that is missing any of those files.
 #
 # Note: trimming is a separate stage (02b_trim_pools.sh) so we can control
 # what happens with the 150 PE overshoot. STARsolo's --clipAdapterType
@@ -50,8 +55,8 @@
 set -euo pipefail
 
 pool="${1:-}"
-if [[ ! "$pool" =~ ^[1-4]$ ]]; then
-  echo "usage: $0 <POOL_N>   (POOL_N = 1, 2, 3, or 4)" >&2
+if [[ ! "$pool" =~ ^[0-9]+$ ]]; then
+  echo "usage: $0 <POOL_N>   (a pool number already trimmed by 02b)" >&2
   exit 1
 fi
 
@@ -59,10 +64,13 @@ fi
 baseDir="/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah"
 repoDir="$baseDir/BZeaBRBseq"
 trimDir="${baseDir}/trimmed"
+threads="${SLURM_CPUS_PER_TASK:-16}"
 
 R1="${trimDir}/pool_${pool}_R1.fastq.gz"
 R2="${trimDir}/pool_${pool}_R2.fastq.gz"
+trimLog="${trimDir}/pool_${pool}_trim.log"
 whitelist="${repoDir}/data/starsolo/barcode_whitelist.txt"
+barcodeMap="${repoDir}/data/starsolo/pool_${pool}_barcode_map.tsv"
 starIndex="/rsstu/users/r/rrellan/sara/ref/STAR_index"    # shared lab STAR index (same one the legacy 05_STAR_alignment.sh used)
 
 outDir="${baseDir}/starsolo/pool_${pool}"
@@ -74,10 +82,17 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate /usr/local/usrapps/maize/hdpil/hdpil
 
 # --- validate inputs ------------------------------------------------------
-for f in "$R1" "$R2" "$whitelist"; do
-  [ -f "$f" ] || { echo "ERROR: missing input: $f" >&2; exit 1; }
+for f in "$R1" "$R2" "$whitelist" "$barcodeMap"; do
+  [ -s "$f" ] || { echo "ERROR: missing or empty input: $f" >&2; exit 1; }
 done
+grep -q "Both Surviving" "$trimLog" 2>/dev/null || { echo "ERROR: $trimLog does not show a finished trim; rerun 02b for pool $pool" >&2; exit 1; }
+n_map=$(( $(wc -l < "$barcodeMap") - 1 ))
+[ "$n_map" -gt 0 ] || { echo "ERROR: $barcodeMap lists no samples; check data/metadata.csv for plate $pool" >&2; exit 1; }
 [ -d "$starIndex" ] || { echo "ERROR: STAR index dir missing: $starIndex" >&2; exit 1; }
+
+# clear the marker and any temp dir from an earlier, interrupted run
+rm -f "$outDir/DONE"
+rm -rf "$outDir/_STARtmp"
 command -v STAR >/dev/null || { echo "ERROR: STAR not on PATH" >&2; exit 1; }
 STAR --version
 
@@ -85,6 +100,8 @@ echo "=== STARsolo pool $pool ==="
 echo "R1:        $R1  ($(du -h "$R1" | cut -f1))"
 echo "R2:        $R2  ($(du -h "$R2" | cut -f1))"
 echo "Whitelist: $whitelist  ($(wc -l < "$whitelist") barcodes)"
+echo "Map:       $barcodeMap  ($n_map samples)"
+echo "Threads:   $threads"
 echo "Index:     $starIndex"
 echo "Output:    $outDir/"
 echo ""
@@ -94,7 +111,7 @@ echo ""
 cd "$outDir"
 STAR \
   --runMode alignReads \
-  --runThreadN 16 \
+  --runThreadN "$threads" \
   --genomeDir "$starIndex" \
   --readFilesIn "$R2" "$R1" \
   --readFilesCommand zcat \
@@ -119,6 +136,12 @@ STAR \
   --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM \
   --limitBAMsortRAM 40000000000 \
   --outFileNamePrefix "${outDir}/"
+
+for f in "Solo.out/Gene/raw/umiDedup-1MM_Directional.mtx" "Solo.out/Gene/raw/umiDedup-NoDedup.mtx" \
+         "Solo.out/Gene/raw/barcodes.tsv" "Solo.out/Gene/raw/features.tsv" "Log.final.out"; do
+  [ -s "${outDir}/$f" ] || { echo "ERROR: STAR finished but ${outDir}/$f is missing or empty" >&2; exit 1; }
+done
+date > "${outDir}/DONE"
 
 echo ""
 echo "=== pool $pool done ==="

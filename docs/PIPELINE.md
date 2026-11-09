@@ -1,7 +1,7 @@
 # STARsolo pipeline — quick-start guide
 
 End-to-end guide for running the BRB-seq preprocessing pipeline
-(fastq → UMI-collapsed count matrix) on an LSF HPC.
+(fastq → UMI-collapsed count matrix) on a Slurm HPC (NCSU Hazel).
 
 Sections:
 
@@ -39,12 +39,9 @@ ls -la /path/to/STAR_index/
 ```
 Should show `Genome`, `SA`, `SAindex`, `genomeParameters.txt`, `chrLength.txt`, etc. If empty or the key files are missing, the index needs to be built (~1 h, one-time). Build with `STAR --runMode genomeGenerate` from the reference fasta + gtf.
 
-### 1c. Raw pool fastqs present
+### 1c. Raw pool fastqs listed in `data/pool_fastqs.tsv`
 
-```bash
-ls -la /path/to/raw_pools/*_R{1,2}_*.fastq.gz
-```
-One R1 and one R2 per pool, each multi-GB. If any are missing you need the sequencer output.
+`data/pool_fastqs.tsv` is the only place the pipeline learns where each pool's raw FASTQs are: one row per pool (pool = plate), tab-separated `pool  R1  R2`, absolute Hazel paths. File names can be anything (Illumina `BZeaBRB1_S1_L004_R1_001.fastq.gz`, Novogene `..._1.fq.gz`, etc.). `02b_trim_pools.sh` stops with a clear message if a pool has no row, two rows, or a missing/empty file.
 
 ### 1d. Metadata matches raw fastqs
 
@@ -64,7 +61,7 @@ ls -d logs || mkdir logs
 
 ## 2. Cold start (first run ever, or new user on HPC)
 
-Assumes: prerequisites all pass, but no pipeline outputs exist yet. The pipeline as written handles 4 pools; edit the pool-count logic (see §3) if you have a different number.
+Assumes: prerequisites all pass, but no pipeline outputs exist yet. No script hardcodes the number of pools: the pools run are the ones you list in `--array=`, and the merge takes every finished `starsolo/pool_N/`. The wrappers use absolute paths, so `sbatch` works from any directory.
 
 ### 2a. Build the STARsolo barcode files (LOCAL or HPC)
 
@@ -90,20 +87,20 @@ git commit -m "STARsolo barcode files"
 git push
 ```
 
-### 2b. Trim all pools (HPC, LSF array)
+### 2b. Trim all pools (HPC, Slurm array)
 
 Trimmomatic PE trims the R2 overshoot for long-read sequencing (150 PE and up). All pools in parallel:
 
 ```bash
 cd batch
-bsub -J "trim[1-4]" < q_02b_trim.sh
-bjobs -w
+sbatch --array=1-4 q_02b_trim.sh
+squeue -u $USER
 ```
 
-Runtime scales with pool size. When all pools show DONE:
+Runtime scales with pool size. When all pools have left `squeue`:
 ```bash
 # quick per-pool trim summary
-for p in 1 2 3 4; do
+for p in 1 2 3 4; do   # list the pools you ran
   echo "=== pool $p ==="
   grep "Input Read Pairs" /path/to/trimmed/pool_${p}_trim.log
 done
@@ -111,19 +108,19 @@ done
 
 The `Both Surviving` line reports paired-read survival. Watch for pools that survive substantially less than the others — big spread suggests a library-quality difference worth investigating before proceeding.
 
-### 2c. STARsolo all pools (HPC, LSF array)
+### 2c. STARsolo all pools (HPC, Slurm array)
 
 Do this only after all trim tasks finished cleanly:
 ```bash
-bsub -J "STARsolo[1-4]" < q_03_STARsolo.sh
-bjobs -w
+sbatch --array=1-4 q_03_STARsolo.sh
+squeue -u $USER
 ```
 
-When all pools show DONE:
+When all pools have left `squeue`:
 
 ```bash
 # quick per-pool alignment check
-for p in 1 2 3 4; do
+for p in 1 2 3 4; do   # list the pools you ran
   echo "=== pool $p ==="
   grep -E "Uniquely mapped reads %|Number of input reads" \
        /path/to/starsolo/pool_${p}/Log.final.out
@@ -135,8 +132,8 @@ Alithea's July 2026 manual notes that uniquely-mapped % is "typically around 60�
 ### 2d. Merge pools + build QC summary
 
 ```bash
-bsub < q_04_merge_pools.sh
-bjobs -w
+sbatch q_04_merge_pools.sh
+squeue -u $USER
 ```
 
 ~10 minutes. Produces in `data/processed/`:
@@ -158,35 +155,32 @@ Count-matrix `.txt` files are ~30–40 MB and gitignored; either leave them per-
 
 ## 3. Adding new samples (warm start)
 
-Say a new sequencing run produces one more R1/R2 pair per additional pool, and you've added the new sample_id rows to `data/metadata.csv` with a new `plate` value (e.g., plate=5 for a 5th pool).
+Say a new sequencing run delivers one R1/R2 pair per new plate (e.g. plates 5, 7, 8, 9), and `data/metadata.csv` already has those plates' `sample_id`, `plate_pos` and `plate` rows. No script needs editing.
 
-### 3a. Regenerate barcode files
+### 3a. Register the FASTQs and regenerate barcode maps
 
+Add one row per new pool to `data/pool_fastqs.tsv` (absolute Hazel paths to R1 and R2), then:
 ```bash
 cd <repo>
 Rscript scripts/02_prepare_barcodes.R
 ```
-Expect an additional `Wrote data/starsolo/pool_5_barcode_map.tsv` line beyond the existing pools.
+It writes a map for every plate in `metadata.csv`. Commit + push, then `git pull` on Hazel.
 
-Update the pool-count validation in `02b_trim_pools.sh` and `03_STARsolo_per_pool.sh` — search for `^[1-4]$` in both and widen the range (e.g., `^[1-5]$`). Commit + push.
-
-### 3b. Trim + align only the new pool
+### 3b. Trim + align only the new pools
 
 ```bash
-cd batch
-bsub -J "trim[5]" < q_02b_trim.sh
-# after trim[5] finishes:
-bsub -J "STARsolo[5]" < q_03_STARsolo.sh
+sbatch --array=5,7,8,9 <repo>/batch/q_02b_trim.sh
+# after all trim tasks finish:
+sbatch --array=5,7,8,9 <repo>/batch/q_03_STARsolo.sh
 ```
+`03` refuses a pool whose trim log lacks `Both Surviving` or whose barcode map is missing, so it cannot run on a half-trimmed pool.
 
 ### 3c. Rebuild the merged count matrix
 
-`04_merge_pools.R` needs updating for the new pool. Search the R script for `1:4` and change to `1:5`. Commit + push. Then:
 ```bash
-bsub < q_04_merge_pools.sh
+sbatch <repo>/batch/q_04_merge_pools.sh
 ```
-
-Produces the same three files as before, now covering all pools.
+Merges every `starsolo/pool_N/` and stops, naming the pool, if any is incomplete. To merge a subset: `sbatch --export=ALL,POOLS="1 2 3 4 5" <repo>/batch/q_04_merge_pools.sh`.
 
 ---
 
@@ -196,17 +190,17 @@ Common case: a script edit, or one specific pool failed and you want to redo jus
 
 ```bash
 # rerun trim for just pool N
-bsub -J "trim[N]" < q_02b_trim.sh
+sbatch --array=N q_02b_trim.sh
 
 # rerun STARsolo for just pool N
-bsub -J "STARsolo[N]" < q_03_STARsolo.sh
+sbatch --array=N q_03_STARsolo.sh
 ```
 
 The output directory is per-pool (`trimmed/pool_N_R*.fastq.gz`, `starsolo/pool_N/`), so re-running one pool only overwrites that pool's outputs — other pools' outputs stay intact.
 
 Then rerun the merge to fold the updated pool back into the combined count matrix:
 ```bash
-bsub < q_04_merge_pools.sh
+sbatch q_04_merge_pools.sh
 ```
 
 ---
@@ -222,7 +216,7 @@ The script died in its header before printing anything. Almost always a bash `se
 
 Fix: run the script with trace on an **interactive node** (never on login — HPC policy at NCSU and most other sites):
 ```bash
-bsub -Is -q sara -n 2 -W 0:30 bash
+srun --account=maize_cpu --partition=compute_partners --cpus-per-task=2 --time=00:30:00 --pty bash
 # inside interactive shell:
 cd <repo>
 module load conda
@@ -267,8 +261,8 @@ git push origin master
 
 ### Job needs more time than the walltime allowed
 
-Edit the `#BSUB -W` line in the relevant `q_*.sh` wrapper (format is `HH:MM`, e.g. `-W 10:00` for 10 hours), commit, push, `git pull` on HPC, resubmit.
+Edit the `#SBATCH --time` line in the relevant `q_*.sh` wrapper (format is `HH:MM:SS`, e.g. `--time=10:00:00` for 10 hours), commit, push, `git pull` on HPC, resubmit.
 
 ### Killed a job by accident (Ctrl+C during copy-paste in MobaXterm)
 
-Ctrl+C in a terminal SIGINTs the running command. Copy in MobaXterm is `Ctrl+Insert` (or just select text with mouse — auto-copies by default). To restart: same `bsub` command.
+Ctrl+C in a terminal SIGINTs the running command. Copy in MobaXterm is `Ctrl+Insert` (or just select text with mouse — auto-copies by default). To restart: same `sbatch` command.

@@ -17,9 +17,9 @@ BZeaBRBseq/
 ├── output/                     # figures, memos, plots — mostly gitignored
 ├── scripts/                    # pipeline + local R analyses (prefixed)
 │   └── legacy/                 # Buckler-lab pipeline (BRBseqTools + STAR + featureCounts)
-├── batch/                      # LSF job wrappers
-│   ├── legacy/                 # LSF wrappers for scripts/legacy/
-│   └── logs/                   # LSF stdout/stderr — gitignored
+├── batch/                      # Slurm job wrappers
+│   ├── legacy/                 # LSF wrappers for scripts/legacy/ (not converted; legacy pipeline is not rerun)
+│   └── logs/                   # Slurm stdout/stderr — gitignored
 └── BZeaBRBseq.Rproj            # RStudio project file
 ```
 
@@ -53,27 +53,27 @@ Corresponding data files carry the same prefix (`FBX_depth_matrix.tsv`, `FBX_lib
 
 Detailed usage — cold start, adding new samples, rerunning one pool, troubleshooting — lives in [`docs/PIPELINE.md`](docs/PIPELINE.md). Section below is an overview.
 
-Runs on the NCSU sara queue via LSF wrappers in `batch/`. Each script assumes `baseDir=/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah`, `repoDir=$baseDir/BZeaBRBseq`, and the STARsolo command comes straight from Alithea's July 2026 data-analysis manual §1.4 — one alignment step handles sample-barcode demux (from R1 first 14 nt), UMI extraction (R1 nt 15–28), adapter clipping, alignment, and UMI-collapsed gene counting. Dual-dedup mode (`--soloUMIdedup "1MM_Directional NoDedup"`) emits both the UMI-collapsed and raw-read matrices in the same run.
+Runs on Hazel under Slurm (account `maize_cpu`, partition `compute_partners`) via the wrappers in `batch/`. Each script assumes `baseDir=/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/hannah`, `repoDir=$baseDir/BZeaBRBseq`, and the STARsolo command comes straight from Alithea's July 2026 data-analysis manual §1.4 — one alignment step handles sample-barcode demux (from R1 first 14 nt), UMI extraction (R1 nt 15–28), adapter clipping, alignment, and UMI-collapsed gene counting. Dual-dedup mode (`--soloUMIdedup "1MM_Directional NoDedup"`) emits both the UMI-collapsed and raw-read matrices in the same run.
 
 | Stage | Script | Description | Where it runs |
 |-------|--------|-------------|---------------|
 | 02  | `02_prepare_barcodes.R` | Build STARsolo barcode whitelist + per-pool barcode ↔ sample_id maps from `data/metadata.csv` + `data/barcodes.txt`. One-time (until new samples). | LOCAL or HPC |
-| 02b | `02b_trim_pools.sh POOL_N` | Trimmomatic PE on pool R1+R2 to trim the 150 PE overshoot before STARsolo (needed because Alithea's STARsolo command is tuned for ~90 nt R2, not 150 nt). Keeps R1/R2 in sync. | HPC (LSF array) |
-| 03  | `03_STARsolo_per_pool.sh POOL_N` | STARsolo alignment + demux + UMI count for one pool. Reads trimmed pool fastqs, writes to `hannah/starsolo/pool_N/Solo.out/Gene/raw/`. | HPC (LSF array) |
+| 02b | `02b_trim_pools.sh POOL_N` | Trimmomatic PE on pool R1+R2 to trim the 150 PE overshoot before STARsolo (needed because Alithea's STARsolo command is tuned for ~90 nt R2, not 150 nt). Keeps R1/R2 in sync. | HPC (Slurm array) |
+| 03  | `03_STARsolo_per_pool.sh POOL_N` | STARsolo alignment + demux + UMI count for one pool. Reads trimmed pool fastqs, writes to `hannah/starsolo/pool_N/Solo.out/Gene/raw/`. | HPC (Slurm array) |
 | 04  | `04_merge_pools.R` | Merge per-pool `.mtx` outputs into two tab-delimited count matrices in `data/processed/`, plus a `starsolo_pool_qc.csv` summary. | HPC or LOCAL |
 
 **Submit commands** (once `02_prepare_barcodes.R` has been run and its outputs are in `data/starsolo/`):
 
 ```bash
 cd batch
-bsub -J "trim[1-4]" < q_02b_trim.sh          # ~1-6 h per pool depending on size
+sbatch --array=1-4 q_02b_trim.sh          # ~1-6 h per pool depending on size
 # wait for trim to finish, then:
-bsub -J "STARsolo[1-4]" < q_03_STARsolo.sh   # ~1.5-10 h per pool depending on size
+sbatch --array=1-4 q_03_STARsolo.sh   # ~1.5-10 h per pool depending on size
 # wait for STARsolo to finish, then:
-bsub < q_04_merge_pools.sh                   # ~10 min
+sbatch q_04_merge_pools.sh                  # ~10 min
 ```
 
-Pool 1 is by far the largest (~40 GB R1); pools 3–4 finish quickly. LSF array `[1-4]` fans all four pools onto separate hosts in parallel.
+Pool = plate. Raw FASTQ paths for each pool come from `data/pool_fastqs.tsv` (one row per pool; add rows for a new batch), barcode maps from `02_prepare_barcodes.R` (all plates in `metadata.csv`), and the merge takes every finished `starsolo/pool_N/` (or `POOLS="..."`). No script hardcodes the pool count. `--array=` lists the pools to run (e.g. `--array=5,7,8,9`); under the `p_maize` QOS cap of 32 CPUs, two 16-CPU tasks run at a time. See `docs/PIPELINE.md` §3 for adding a batch.
 
 **Outputs (canonical):**
 - `data/processed/Zea_mays_counts.txt` — UMI-collapsed count matrix (this is what downstream analyses read)
@@ -174,8 +174,8 @@ git commit -m "..." && git push
 
 # HPC: pull, submit, wait
 cd ~/hannah/BZeaBRBseq && git pull
-cd batch && bsub < q_FBX_analysisN.sh
-bjobs -w
+cd batch && sbatch q_FBX_analysisN.sh
+squeue -u $USER
 
 # HPC: after job finishes, commit outputs and push
 cd ~/hannah/BZeaBRBseq

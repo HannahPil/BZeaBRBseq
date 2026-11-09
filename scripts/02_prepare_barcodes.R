@@ -4,10 +4,13 @@
 # 02 -- Prepare STARsolo barcode files (LOCAL or HPC, one-time per sample set)
 #
 # STARsolo needs two things per pool:
-#   1. A cell-barcode whitelist (one 14 nt barcode per line). Same 96 barcodes
-#      across all four pools (single V5B 96-well plate), so one file suffices.
-#   2. A barcode -> sample_id map, per pool. Different sample_ids in each pool
-#      map to the same 96 physical barcodes, so this file is per-pool.
+#   1. A cell-barcode whitelist (one 14 nt barcode per line). Every plate uses
+#      the same 96 barcodes (one V5B 96-well barcode plate), so one file suffices.
+#   2. A barcode -> sample_id map, per pool (pool = plate). Different sample_ids
+#      in each pool map to the same 96 physical barcodes, so this file is per-pool.
+#
+# Writes a map for EVERY plate in data/metadata.csv that has plate_pos filled,
+# so new plates need no edit here: add their rows to metadata.csv and rerun.
 #
 # Inputs:
 #   data/metadata.csv                                sample_id, plate_pos, plate
@@ -16,7 +19,7 @@
 #
 # Outputs (all under data/starsolo/):
 #   barcode_whitelist.txt              96 barcodes, one per line
-#   pool_N_barcode_map.tsv             sample_id \t barcode  (N in 1..4)
+#   pool_N_barcode_map.tsv             sample_id \t barcode  (one per plate)
 #
 # Base R only (no tidyverse) so it runs in a minimal env.
 # ==============================================================================
@@ -60,18 +63,24 @@ cat("Wrote ", whitelist_path, " (", nrow(barcodes), " barcodes)\n", sep = "")
 
 # --- per-pool barcode -> sample_id maps ----------------------------------
 stopifnot(all(c("sample_id", "plate_pos", "plate") %in% colnames(metadata)))
-meta <- metadata[metadata$plate %in% 1:4 &
+meta <- metadata[!is.na(metadata$plate) &
                  !is.na(metadata$plate_pos) & metadata$plate_pos != "",
                  c("sample_id", "plate_pos", "plate")]
+meta$plate_pos <- trimws(meta$plate_pos)
+dup_sid <- meta$sample_id[duplicated(meta$sample_id)]
+if (length(dup_sid) > 0) stop("Duplicate sample_id(s) in metadata: ",
+                              paste(utils::head(dup_sid, 5), collapse = ", "))
 mapped <- merge(meta, barcodes, by = "plate_pos", all.x = FALSE)
 
 missing <- setdiff(meta$sample_id, mapped$sample_id)
 if (length(missing) > 0) {
-  warning(length(missing), " samples in metadata missing barcodes: ",
-          paste(utils::head(missing, 5), collapse = ", "), " ...")
+  stop(length(missing), " samples in metadata have a plate_pos with no barcode in ",
+       bc_path, ": ", paste(utils::head(missing, 5), collapse = ", "))
 }
 
-for (p in 1:4) {
+plates <- sort(unique(as.integer(meta$plate)))
+cat("Plates with samples:", paste(plates, collapse = " "), "\n")
+for (p in plates) {
   pool_df <- mapped[mapped$plate == p, c("sample_id", "barcode")]
   pool_df <- pool_df[order(pool_df$sample_id), , drop = FALSE]
   path <- file.path(out_dir, sprintf("pool_%d_barcode_map.tsv", p))
@@ -79,8 +88,8 @@ for (p in 1:4) {
   cat(sprintf("Wrote %s (%d samples)\n", path, nrow(pool_df)))
   dup <- pool_df$barcode[duplicated(pool_df$barcode)]
   if (length(dup) > 0) {
-    warning("Pool ", p, " has duplicate barcodes: ",
-            paste(dup, collapse = ", "))
+    stop("Pool ", p, " has two samples on the same well/barcode: ",
+         paste(dup, collapse = ", "))
   }
 }
 

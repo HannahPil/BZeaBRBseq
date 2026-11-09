@@ -1,0 +1,5 @@
+pool	R1	R2
+1	/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/BZeaBRB1_S1_L004_R1_001.fastq.gz	/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/BZeaBRB1_S1_L004_R2_001.fastq.gz
+2	/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/BZeaBRB2_S2_L004_R1_001.fastq.gz	/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/BZeaBRB2_S2_L004_R2_001.fastq.gz
+3	/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/BZeaBRB3_S3_L004_R1_001.fastq.gz	/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/BZeaBRB3_S3_L004_R2_001.fastq.gz
+4	/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/BZeaBRB4_S4_L004_R1_001.fastq.gz	/rsstu/users/r/rrellan/sara/RNA_Sequencing_raw/BZea_CLY23D1/NVS205B_RellanAlvarez/BZeaBRB4_S4_L004_R2_001.fastq.gz
