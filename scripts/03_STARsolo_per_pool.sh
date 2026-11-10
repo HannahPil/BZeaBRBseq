@@ -134,7 +134,7 @@ STAR \
   --outBAMsortingThreadN 1 \
   --outBAMsortingBinsN 4 \
   --outSAMattributes NH HI nM AS CR UR CB UB GX GN sS sQ sM \
-  --limitBAMsortRAM 40000000000 \
+  --limitBAMsortRAM 110000000000 \
   --outFileNamePrefix "${outDir}/"
 
 for f in "Solo.out/Gene/raw/umiDedup-1MM_Directional.mtx" "Solo.out/Gene/raw/umiDedup-NoDedup.mtx" \
