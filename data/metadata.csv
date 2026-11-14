@@ -583,7 +583,7 @@ PN7_SID581,Zea_mays,Zv.0470,Bals,no,Zv.0470_P2_P3_P2.1.1.1,leaf,May262023,E01,7,
 PN7_SID582,Zea_mays,Zv.0120,Bals,no,Zv.0120_P2_P5_P2.2.1.1,leaf,May262023,F01,7,2,6620,,,
 PN7_SID583,Zea_mays,Zx.0560,Dura,no,Zx.0560_P4_P3_P4.3.1.1,leaf,May262023,G01,7,2,6621,,,
 PN7_SID584,Zea_mays,Zx.0190,Chal,no,Zx.0190_P2_P4_P1.1.1.1,leaf,May262023,H01,7,2,6622,,,
-PN7_SID585,Zea_mays,Zx.0550,Dura,no,Zx.0550_P4_P1_P2.1.1.1,leaf,May262023,A02,7,2,6623,,,
+PN7_SID585,Zea_mays,BLANK,BLANK,blank,BLANK,leaf,May262023,A02,7,2,6623,,,SWITCHED TO BLANK (used to be mex)
 PN7_SID586,Zea_mays,Zv.0280,Bals,no,Zv.0280_P3_P3_P1.1.1.1,leaf,May262023,B02,7,2,6624,,,
 PN7_SID587,Zea_mays,Zv.0160,Bals,no,Zv.0160_P4_P5_P1.1.1.1,leaf,May262023,C02,7,2,6625,,,
 PN7_SID588,Zea_mays,Zx.0580,Nobo,no,Zx.0580_P3_P1_P3.3.1.1,leaf,May262023,D02,7,2,6626,,,
