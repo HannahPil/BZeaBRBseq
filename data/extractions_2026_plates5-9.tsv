@@ -1,4 +1,4 @@
-# Copied 2026-11-09 from Google Sheet BZeaBRB-manifest, tab 2026_extractions (columns Plate, Well, Plot, Genotype, Extraction notes), plates 5-9.
+# Copied 2026-11-09 (plate 9 E10 updated to BLANK 2026-11-14) from Google Sheet BZeaBRB-manifest, tab 2026_extractions (columns Plate, Well, Plot, Genotype, Extraction notes), plates 5-9.
 plate	well	plot	genotype	note
 5	A01	6423	Zx.0580_P2_P5_P4.1.1.1	
 5	B01	6424	Zx.0570_P2_P2_P4.3.1.1	
@@ -460,7 +460,7 @@ plate	well	plot	genotype	note
 9	B10	6887	Zx.0550_P4_P1_P3.1.1.1	
 9	C10	6888	Zl.0020_P3_P1_P1.2.1.1	
 9	D10	6889	Zd.0030_P2_P5_P2.3.1.1	
-9	E10	6890	Zd.0010_P2_P3_P2.4.1.1	
+9	E10	6890	BLANK	SWITCHED TO BLANK (used to be diplo)
 9	F10	6891	Zx.0100_P4_P5_P1.1.1.1	
 9	G10	6892	Zv.0070_P4_P1_P1.1.1.1	
 9	H10	6893	Zh.0030_P4_P2_P1.2.1.1	
